@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics — Clearance Quiz</title>
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy:#1e3a5f; --navy-light:#2a4f82; --blue:#2563eb; --blue-light:#3b82f6;
+  --bg:#f8fafc; --surface:#ffffff; --border:#e2e8f0; --border-md:#cbd5e1;
+  --text:#0f172a; --text-2:#475569; --text-3:#94a3b8;
+  --t1:#059669; --t1-bg:#ecfdf5; --t1-border:#a7f3d0;
+  --t2:#2563eb; --t2-bg:#eff6ff; --t2-border:#bfdbfe;
+  --t3:#d97706; --t3-bg:#fffbeb; --t3-border:#fde68a;
+  --t4:#ea580c; --t4-bg:#fff7ed; --t4-border:#fed7aa;
+  --t5:#dc2626; --t5-bg:#fef2f2; --t5-border:#fecaca;
+}
+body { font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; min-height:100vh; }
+h1 { font-size:1.75rem; font-weight:700; line-height:1.25; }
+h2 { font-size:1.25rem; font-weight:600; line-height:1.3; }
+h3 { font-size:1rem; font-weight:600; }
+p  { color:var(--text-2); }
+.page-wide { max-width:1100px; margin:0 auto; padding:2rem 1.25rem 4rem; }
+.navbar { background:var(--navy); padding:0 1.5rem; display:flex; align-items:center; gap:2rem; height:56px; position:sticky; top:0; z-index:100; }
+.navbar-brand { color:white; font-weight:700; font-size:1rem; text-decoration:none; letter-spacing:.01em; white-space:nowrap; }
+.navbar-links { display:flex; gap:.25rem; margin-left:auto; }
+.navbar-link { color:rgba(255,255,255,.75); text-decoration:none; font-size:.875rem; padding:.4rem .75rem; border-radius:6px; transition:background .15s,color .15s; }
+.navbar-link:hover,.navbar-link.active { background:rgba(255,255,255,.12); color:white; }
+.btn { display:inline-flex; align-items:center; gap:.4rem; padding:.55rem 1.1rem; border-radius:7px; font-size:.9rem; font-weight:500; cursor:pointer; border:1px solid transparent; transition:background .15s,opacity .15s; text-decoration:none; white-space:nowrap; }
+.btn:disabled { opacity:.45; cursor:not-allowed; }
+.btn-navy     { background:var(--navy); color:white; }
+.btn-navy:hover:not(:disabled) { background:var(--navy-light); }
+.btn-outline  { background:white; color:var(--text); border-color:var(--border-md); }
+.btn-outline:hover:not(:disabled) { border-color:var(--blue); color:var(--blue); }
+.btn-danger   { background:white; color:#dc2626; border-color:#fecaca; }
+.btn-danger:hover:not(:disabled)  { background:#fef2f2; }
+.btn-sm { padding:.35rem .7rem; font-size:.8rem; }
+input[type=text],input[type=email],input[type=tel],select,textarea { padding:.55rem .75rem; border:1px solid var(--border-md); border-radius:7px; font-size:.9rem; font-family:inherit; color:var(--text); background:white; width:100%; }
+.tier-badge { display:inline-flex; align-items:center; gap:.35rem; padding:.25rem .65rem; border-radius:999px; font-size:.78rem; font-weight:600; }
+.tier-1 { background:var(--t1-bg); color:var(--t1); border:1px solid var(--t1-border); }
+.tier-2 { background:var(--t2-bg); color:var(--t2); border:1px solid var(--t2-border); }
+.tier-3 { background:var(--t3-bg); color:var(--t3); border:1px solid var(--t3-border); }
+.tier-4 { background:var(--t4-bg); color:var(--t4); border:1px solid var(--t4-border); }
+.tier-5 { background:var(--t5-bg); color:var(--t5); border:1px solid var(--t5-border); }
+.tag { display:inline-block; padding:.2rem .55rem; background:var(--bg); border:1px solid var(--border); border-radius:999px; font-size:.78rem; color:var(--text-2); }
+.text-muted { color:var(--text-3); font-size:.875rem; }
+.flex-between { display:flex; justify-content:space-between; align-items:center; }
+.mt-1{margin-top:.25rem}
+.hidden { display:none !important; }
+  </style>
+  <style>
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.75rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+    }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--navy); line-height: 1.2; }
+    .stat-label { font-size: 0.78rem; color: var(--text-3); margin-top: 0.2rem; }
+
+    .filter-bar {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 1.25rem;
+    }
+    .filter-bar select { width: auto; flex: 1; min-width: 150px; max-width: 220px; }
+
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    thead { background: var(--bg); }
+    th {
+      text-align: left;
+      padding: 0.65rem 0.9rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-2);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 0.75rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      color: var(--text);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+
+    .td-flags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .td-name  { font-weight: 500; }
+    .td-date  { color: var(--text-3); white-space: nowrap; font-size: 0.8rem; }
+
+    .empty-row td {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-3);
+    }
+
+    .del-btn {
+      background: none;
+      border: none;
+      color: var(--text-3);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .del-btn:hover { color: #dc2626; background: #fef2f2; }
+
+    .actions-bar {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <a class="navbar-brand" href="index.html">Clearance Quiz</a>
+    <div class="navbar-links">
+      <a class="navbar-link" href="index.html">Quizzes</a>
+      <a class="navbar-link active" href="admin.html">Analytics</a>
+      <a class="navbar-link" href="builder.html">Builder</a>
+    </div>
+  </nav>
+
+  <div class="page-wide">
+    <div class="flex-between" style="margin-bottom:1.5rem;flex-wrap:wrap;gap:0.75rem;">
+      <div>
+        <h1 style="color:var(--navy)">Analytics</h1>
+        <p class="text-muted mt-1">All quiz responses — stored locally in this browser.</p>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="stats-row"></div>
+
+    <!-- Filter + export bar -->
+    <div class="actions-bar">
+      <div class="filter-bar" style="margin:0;flex:1;">
+        <select id="filter-quiz" onchange="applyFilters()">
+          <option value="">All quizzes</option>
+        </select>
+        <select id="filter-tier" onchange="applyFilters()">
+          <option value="">All result tiers</option>
+          <option value="1">Tier 1</option>
+          <option value="2">Tier 2</option>
+          <option value="3">Tier 3</option>
+          <option value="4">Tier 4</option>
+          <option value="5">Tier 5 (High urgency)</option>
+        </select>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="exportCsv()">Export CSV</button>
+      <button class="btn btn-danger btn-sm" onclick="clearAll()">Clear All</button>
+    </div>
+
+    <div class="table-wrap">
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Quiz</th>
+              <th>Result</th>
+              <th>Flags</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Deadline?</th>
+              <th>Issue type</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="responses-tbody">
+            <tr class="empty-row"><td colspan="10">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+const SEED_QUIZZES=[{id:'sf86-red-flags',slug:'sf86-red-flags',title:'SF-86 Readiness Check',subtitle:'Do You Have Any Security Clearance Red Flags?',groundingNote:'',questions:[],results:[{tier:1,label:'Ready to Submit — Keep It Accurate',message:'',ctaText:'Download the SF-86 final review checklist',ctaType:'download'},{tier:2,label:'Information Gaps',message:'',ctaText:'Get the SF-86 document checklist',ctaType:'download'},{tier:3,label:'Potential Red Flags — Explanation May Matter',message:'',ctaText:'Schedule a pre-submission clearance consultation',ctaType:'schedule'},{tier:4,label:'Disclosure Accuracy Concern',message:'',ctaText:'Speak with a clearance attorney',ctaType:'contact'},{tier:5,label:'Government Action — High Urgency',message:'',ctaText:'Request an urgent case review',ctaType:'contact'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}},{id:'debt-taxes-clearance-risk',slug:'debt-taxes-clearance-risk',title:'Debt, Taxes & Security Clearance Risk Check',subtitle:'Could Your Financial Issue Affect Your Clearance?',groundingNote:'',questions:[],results:[{tier:1,label:'No Major Financial Issue Flagged',message:'',ctaText:'',ctaType:'download'},{tier:2,label:'Information or Documentation Gap',message:'',ctaText:'',ctaType:'download'},{tier:3,label:'Resolved or Managed Financial Issue',message:'',ctaText:'',ctaType:'download'},{tier:4,label:'Active Financial Concern',message:'',ctaText:'',ctaType:'schedule'},{tier:5,label:'Disclosure or Government Action Concern — High Urgency',message:'',ctaText:'',ctaType:'contact'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'What type of issue?',issueTypeOptions:['Debt','Taxes','Bankruptcy','Collections','Garnishment','SOR or LOI','Other']}},{id:'self-reporting-checker',slug:'self-reporting-checker',title:'Self-Reporting Checker',subtitle:'Do You Need to Report This to Your Security Office?',groundingNote:'',questions:[],results:[{tier:1,label:'No Obvious Reporting Trigger Flagged',message:'',ctaText:'',ctaType:'download'},{tier:2,label:'Possible Reporting Issue',message:'',ctaText:'',ctaType:'download'},{tier:3,label:'Likely Self-Reporting Issue',message:'',ctaText:'',ctaType:'schedule'},{tier:4,label:'Delay or Disclosure Concern',message:'',ctaText:'',ctaType:'contact'},{tier:5,label:'Security Incident, Formal Inquiry, or Deadline — High Urgency',message:'',ctaText:'',ctaType:'contact'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}}];
+  </script>
+  <script>
+const KEYS={quizzes:'ql_quizzes',responses:'ql_responses'};
+const Storage={
+  init(){if(!localStorage.getItem(KEYS.quizzes))localStorage.setItem(KEYS.quizzes,JSON.stringify(SEED_QUIZZES));},
+  getQuizzes(){return JSON.parse(localStorage.getItem(KEYS.quizzes)||'[]');},
+  getQuiz(id){return this.getQuizzes().find(q=>q.id===id||q.slug===id)||null;},
+  saveQuiz(quiz){const qs=this.getQuizzes();const i=qs.findIndex(q=>q.id===quiz.id);if(i>=0)qs[i]=quiz;else qs.push(quiz);localStorage.setItem(KEYS.quizzes,JSON.stringify(qs));},
+  deleteQuiz(id){localStorage.setItem(KEYS.quizzes,JSON.stringify(this.getQuizzes().filter(q=>q.id!==id)));},
+  getResponses(){return JSON.parse(localStorage.getItem(KEYS.responses)||'[]');},
+  saveResponse(r){const rs=this.getResponses();rs.unshift(r);localStorage.setItem(KEYS.responses,JSON.stringify(rs));},
+  deleteResponse(id){localStorage.setItem(KEYS.responses,JSON.stringify(this.getResponses().filter(r=>r.id!==id)));},
+  clearResponses(){localStorage.setItem(KEYS.responses,'[]');},
+  scoreAnswers(quiz,opts){let max=1;const flags=[];for(const o of opts){if(o.tier>max)max=o.tier;for(const f of o.flags)if(!flags.includes(f))flags.push(f);}return{tier:max,result:quiz.results.find(r=>r.tier===max),flags:flags.slice(0,3)};},
+  generateId(){return'id_'+Math.random().toString(36).slice(2,10)+'_'+Date.now().toString(36);}
+};
+  </script>
+  <script>
+    let allResponses = [];
+    let allQuizzes   = [];
+
+    function init() {
+      Storage.init();
+      allResponses = Storage.getResponses();
+      allQuizzes   = Storage.getQuizzes();
+
+      // Populate quiz filter
+      const quizSel = document.getElementById('filter-quiz');
+      const seen = new Set();
+      for (const r of allResponses) {
+        if (!seen.has(r.quizId)) {
+          seen.add(r.quizId);
+          const opt = document.createElement('option');
+          opt.value = r.quizId;
+          opt.textContent = r.quizTitle;
+          quizSel.appendChild(opt);
+        }
+      }
+
+      renderStats(allResponses);
+      renderTable(allResponses);
+    }
+
+    function applyFilters() {
+      const quizFilter = document.getElementById('filter-quiz').value;
+      const tierFilter = document.getElementById('filter-tier').value;
+      let filtered = allResponses;
+      if (quizFilter) filtered = filtered.filter(r => r.quizId === quizFilter);
+      if (tierFilter) filtered = filtered.filter(r => String(r.resultTier) === tierFilter);
+      renderTable(filtered);
+    }
+
+    function renderStats(responses) {
+      const total = responses.length;
+      const tierCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+      for (const r of responses) {
+        if (r.resultTier in tierCounts) tierCounts[r.resultTier]++;
+      }
+
+      const statsHtml = [
+        { value: total, label: 'Total responses' },
+        { value: tierCounts[5], label: 'Tier 5 — Urgent', cls: 'tier-5' },
+        { value: tierCounts[4], label: 'Tier 4 — Concern', cls: 'tier-4' },
+        { value: tierCounts[3], label: 'Tier 3 — Red flags', cls: 'tier-3' },
+        { value: tierCounts[2], label: 'Tier 2 — Info gaps', cls: 'tier-2' },
+        { value: tierCounts[1], label: 'Tier 1 — No issue', cls: 'tier-1' },
+      ].map(s => `
+        <div class="stat-card">
+          <div class="stat-value">${s.value}</div>
+          <div class="stat-label">${s.label}</div>
+        </div>
+      `).join('');
+
+      document.getElementById('stats-row').innerHTML = statsHtml;
+    }
+
+    function renderTable(responses) {
+      const tbody = document.getElementById('responses-tbody');
+
+      if (!responses.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No responses yet. Share a quiz link to start collecting leads.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = responses.map(r => {
+        const lc = r.leadCapture || {};
+        const date = new Date(r.timestamp);
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        const flags = (r.triggeredFlags || []).slice(0, 3);
+
+        return `
+          <tr>
+            <td class="td-date">${dateStr}<br><span style="font-size:0.75rem">${timeStr}</span></td>
+            <td>${escHtml(r.quizTitle || r.quizId)}</td>
+            <td>
+              <span class="tier-badge tier-${r.resultTier}">Tier ${r.resultTier}</span>
+              <div style="font-size:0.78rem;color:var(--text-2);margin-top:0.25rem;max-width:160px;">${escHtml(r.resultLabel || '')}</div>
+            </td>
+            <td>
+              <div class="td-flags">${flags.map(f => `<span class="tag">${escHtml(f)}</span>`).join('')}</div>
+            </td>
+            <td class="td-name">${escHtml(lc.name || '—')}</td>
+            <td>${lc.email ? `<a href="mailto:${encodeURIComponent(lc.email)}" style="color:var(--blue)">${escHtml(lc.email)}</a>` : '—'}</td>
+            <td>${escHtml(lc.phone || '—')}</td>
+            <td>${escHtml(lc.deadline || '—')}</td>
+            <td>${escHtml(lc.issueType || '—')}</td>
+            <td>
+              <button class="del-btn" title="Delete" onclick="deleteRow('${escHtml(r.id)}')">✕</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function deleteRow(id) {
+      if (!confirm('Delete this response?')) return;
+      Storage.deleteResponse(id);
+      allResponses = Storage.getResponses();
+      renderStats(allResponses);
+      applyFilters();
+    }
+
+    function clearAll() {
+      if (!confirm('Delete ALL responses? This cannot be undone.')) return;
+      Storage.clearResponses();
+      allResponses = [];
+      document.getElementById('filter-quiz').value = '';
+      document.getElementById('filter-tier').value = '';
+      renderStats([]);
+      renderTable([]);
+    }
+
+    function exportCsv() {
+      const quizFilter = document.getElementById('filter-quiz').value;
+      const tierFilter = document.getElementById('filter-tier').value;
+      let rows = allResponses;
+      if (quizFilter) rows = rows.filter(r => r.quizId === quizFilter);
+      if (tierFilter) rows = rows.filter(r => String(r.resultTier) === tierFilter);
+
+      const headers = ['Date','Time','Quiz','Result Tier','Result Label','Flags','Name','Email','Phone','Deadline','Issue Type'];
+      const csvRows = [headers.join(',')];
+
+      for (const r of rows) {
+        const lc = r.leadCapture || {};
+        const d = new Date(r.timestamp);
+        const cells = [
+          d.toLocaleDateString('en-US'),
+          d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          r.quizTitle || r.quizId,
+          r.resultTier,
+          r.resultLabel || '',
+          (r.triggeredFlags || []).join('; '),
+          lc.name || '',
+          lc.email || '',
+          lc.phone || '',
+          lc.deadline || '',
+          lc.issueType || '',
+        ].map(v => `"${String(v).replace(/"/g,'""')}"`);
+        csvRows.push(cells.join(','));
+      }
+
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `quiz-responses-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function escHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    init();
+  </script>
+</body>
+</html>

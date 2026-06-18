@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz Builder — Clearance Quiz</title>
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy:#1e3a5f; --navy-light:#2a4f82; --blue:#2563eb; --blue-light:#3b82f6;
+  --bg:#f8fafc; --surface:#ffffff; --border:#e2e8f0; --border-md:#cbd5e1;
+  --text:#0f172a; --text-2:#475569; --text-3:#94a3b8;
+  --t1:#059669; --t1-bg:#ecfdf5; --t1-border:#a7f3d0;
+  --t2:#2563eb; --t2-bg:#eff6ff; --t2-border:#bfdbfe;
+  --t3:#d97706; --t3-bg:#fffbeb; --t3-border:#fde68a;
+  --t4:#ea580c; --t4-bg:#fff7ed; --t4-border:#fed7aa;
+  --t5:#dc2626; --t5-bg:#fef2f2; --t5-border:#fecaca;
+}
+body { font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+h1 { font-size:1.75rem; font-weight:700; line-height:1.25; }
+h2 { font-size:1.25rem; font-weight:600; line-height:1.3; }
+h3 { font-size:1rem; font-weight:600; }
+p  { color:var(--text-2); }
+.navbar { background:var(--navy); padding:0 1.5rem; display:flex; align-items:center; gap:2rem; height:56px; position:sticky; top:0; z-index:100; }
+.navbar-brand { color:white; font-weight:700; font-size:1rem; text-decoration:none; letter-spacing:.01em; white-space:nowrap; }
+.navbar-links { display:flex; gap:.25rem; margin-left:auto; }
+.navbar-link { color:rgba(255,255,255,.75); text-decoration:none; font-size:.875rem; padding:.4rem .75rem; border-radius:6px; transition:background .15s,color .15s; }
+.navbar-link:hover,.navbar-link.active { background:rgba(255,255,255,.12); color:white; }
+.btn { display:inline-flex; align-items:center; gap:.4rem; padding:.55rem 1.1rem; border-radius:7px; font-size:.9rem; font-weight:500; cursor:pointer; border:1px solid transparent; transition:background .15s,opacity .15s; text-decoration:none; white-space:nowrap; }
+.btn:disabled { opacity:.45; cursor:not-allowed; }
+.btn-navy     { background:var(--navy); color:white; }
+.btn-navy:hover:not(:disabled) { background:var(--navy-light); }
+.btn-outline  { background:white; color:var(--text); border-color:var(--border-md); }
+.btn-outline:hover:not(:disabled) { border-color:var(--blue); color:var(--blue); }
+.btn-danger   { background:white; color:#dc2626; border-color:#fecaca; }
+.btn-danger:hover:not(:disabled)  { background:#fef2f2; }
+.btn-sm { padding:.35rem .7rem; font-size:.8rem; }
+.form-group { display:flex; flex-direction:column; gap:.375rem; }
+.form-group+.form-group { margin-top:1rem; }
+label { font-size:.875rem; font-weight:500; color:var(--text); }
+input[type=text],input[type=email],input[type=tel],select,textarea { padding:.55rem .75rem; border:1px solid var(--border-md); border-radius:7px; font-size:.9rem; font-family:inherit; color:var(--text); background:white; width:100%; transition:border-color .15s,box-shadow .15s; }
+input:focus,select:focus,textarea:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+textarea { resize:vertical; min-height:80px; }
+.hint { font-size:.78rem; color:var(--text-3); }
+.tier-badge { display:inline-flex; align-items:center; gap:.35rem; padding:.25rem .65rem; border-radius:999px; font-size:.78rem; font-weight:600; }
+.tier-1 { background:var(--t1-bg); color:var(--t1); border:1px solid var(--t1-border); }
+.tier-2 { background:var(--t2-bg); color:var(--t2); border:1px solid var(--t2-border); }
+.tier-3 { background:var(--t3-bg); color:var(--t3); border:1px solid var(--t3-border); }
+.tier-4 { background:var(--t4-bg); color:var(--t4); border:1px solid var(--t4-border); }
+.tier-5 { background:var(--t5-bg); color:var(--t5); border:1px solid var(--t5-border); }
+.tag { display:inline-block; padding:.2rem .55rem; background:var(--bg); border:1px solid var(--border); border-radius:999px; font-size:.78rem; color:var(--text-2); }
+.text-muted { color:var(--text-3); font-size:.875rem; }
+.hidden { display:none !important; }
+  </style>
+  <style>
+    body { overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Layout ── */
+    .builder-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 240px;
+      min-width: 240px;
+      background: var(--navy);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .sidebar-header h2 {
+      color: white;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      margin-bottom: 0.6rem;
+    }
+    .sidebar-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.5rem;
+    }
+    .quiz-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.65rem 0.75rem;
+      border-radius: 7px;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.75);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      line-height: 1.35;
+    }
+    .quiz-item:hover { background: rgba(255,255,255,0.08); color: white; }
+    .quiz-item.active { background: rgba(255,255,255,0.15); color: white; font-weight: 500; }
+
+    /* ── Editor panel ── */
+    .editor-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .editor-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .editor-topbar h2 { font-size: 1rem; color: var(--navy); flex: 1; }
+    .editor-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+    /* ── Tabs ── */
+    .tab-nav {
+      display: flex;
+      gap: 0;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      padding: 0.7rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-2);
+      background: transparent;
+      border: none;
+      border-bottom: 2.5px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .editor-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+    }
+
+    /* ── Empty state ── */
+    .empty-editor {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 1rem;
+      color: var(--text-3);
+      text-align: center;
+      padding: 2rem;
+    }
+    .empty-editor .icon { font-size: 3rem; }
+    .empty-editor p { max-width: 260px; font-size: 0.875rem; }
+
+    /* ── Question cards ── */
+    .question-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 1rem;
+    }
+    .question-card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .q-number {
+      width: 24px; height: 24px;
+      background: var(--navy);
+      color: white;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .question-card-header input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 0.95rem;
+      font-weight: 500;
+      padding: 0;
+      color: var(--text);
+    }
+    .question-card-header input:focus { outline: none; }
+    .q-controls { display: flex; gap: 0.25rem; flex-shrink: 0; }
+    .icon-btn {
+      width: 28px; height: 28px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-2);
+      transition: background 0.12s, color 0.12s;
+    }
+    .icon-btn:hover { background: var(--bg); color: var(--text); }
+    .icon-btn.danger:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+
+    /* ── Options ── */
+    .options-editor { padding: 0.75rem 1rem; }
+    .option-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--bg);
+    }
+    .option-row:last-of-type { border-bottom: none; }
+    .option-drag { color: var(--text-3); font-size: 0.8rem; padding-top: 0.5rem; cursor: grab; flex-shrink: 0; }
+    .option-text {
+      flex: 1;
+      border: 1px solid var(--border-md);
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.85rem;
+      resize: none;
+      min-height: 36px;
+      font-family: inherit;
+      line-height: 1.4;
+    }
+    .option-text:focus { outline: none; border-color: var(--blue); }
+    .option-tier {
+      width: 70px;
+      flex-shrink: 0;
+      font-size: 0.8rem;
+      padding: 0.4rem 0.4rem;
+      border-radius: 6px;
+    }
+    .flags-btn {
+      flex-shrink: 0;
+      position: relative;
+    }
+    .flags-pill {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.78rem;
+      border: 1px solid var(--border-md);
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      white-space: nowrap;
+      color: var(--text-2);
+      transition: border-color 0.12s;
+    }
+    .flags-pill:hover { border-color: var(--blue); color: var(--blue); }
+    .flags-pill.has-flags { border-color: var(--blue); color: var(--blue); background: #eff6ff; }
+    .flags-dropdown {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      z-index: 200;
+      min-width: 220px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding: 0.5rem;
+    }
+    .flag-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.4rem;
+      border-radius: 5px;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .flag-option:hover { background: var(--bg); }
+    .flag-option input { cursor: pointer; }
+    .add-flag-row {
+      display: flex;
+      gap: 0.4rem;
+      padding: 0.4rem;
+      border-top: 1px solid var(--border);
+      margin-top: 0.25rem;
+    }
+    .add-flag-row input {
+      flex: 1;
+      font-size: 0.8rem;
+      padding: 0.3rem 0.5rem;
+      border-radius: 5px;
+    }
+
+    /* ── Result tier editor ── */
+    .result-tier-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .result-tier-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .result-tier-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+
+    /* ── Lead capture tab ── */
+    .field-toggle-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .field-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1rem;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .field-toggle-label { font-size: 0.875rem; font-weight: 500; }
+    .field-toggle span.sub { font-size: 0.78rem; color: var(--text-3); display: block; }
+    .toggle-switch {
+      width: 36px; height: 20px;
+      background: var(--border-md);
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+      border: none;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle-switch.on { background: var(--blue); }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      background: white;
+      border-radius: 50%;
+      top: 3px; left: 3px;
+      transition: left 0.2s;
+    }
+    .toggle-switch.on::after { left: 19px; }
+
+    .issue-type-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 0.875rem;
+    }
+    .issue-type-item input { flex: 1; border: none; font-size: 0.875rem; font-family: inherit; }
+    .issue-type-item input:focus { outline: none; }
+
+    /* Overlay to close dropdowns */
+    #overlay { position: fixed; inset: 0; z-index: 100; display: none; }
+
+    /* Saved toast */
+    #toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: var(--navy);
+      color: white;
+      padding: 0.65rem 1.1rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+      z-index: 300;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div id="overlay" onclick="closeAllDropdowns()"></div>
+  <div id="toast">Changes saved</div>
+
+  <nav class="navbar">
+    <a class="navbar-brand" href="index.html">Clearance Quiz</a>
+    <div class="navbar-links">
+      <a class="navbar-link" href="index.html">Quizzes</a>
+      <a class="navbar-link" href="admin.html">Analytics</a>
+      <a class="navbar-link active" href="builder.html">Builder</a>
+    </div>
+  </nav>
+
+  <div class="builder-body">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Quizzes</h2>
+        <button class="btn btn-outline btn-sm" style="width:100%;background:rgba(255,255,255,0.08);color:white;border-color:rgba(255,255,255,0.2);" onclick="createQuiz()">+ New Quiz</button>
+      </div>
+      <div class="sidebar-list" id="sidebar-list"></div>
+    </aside>
+
+    <!-- Editor -->
+    <div class="editor-panel" id="editor-panel">
+      <!-- Empty state -->
+      <div class="empty-editor" id="empty-state">
+        <div class="icon">📋</div>
+        <h2 style="color:var(--text-2);font-size:1rem;">Select a quiz to edit</h2>
+        <p>Choose a quiz from the sidebar or create a new one to get started.</p>
+        <button class="btn btn-navy" onclick="createQuiz()">+ Create Quiz</button>
+      </div>
+
+      <!-- Editor (hidden until quiz selected) -->
+      <div id="quiz-editor" class="hidden" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+        <div class="editor-topbar">
+          <h2 id="editor-title">Quiz Title</h2>
+          <div class="editor-actions">
+            <a id="preview-link" href="#" target="_blank" class="btn btn-outline btn-sm">Preview →</a>
+            <button class="btn btn-danger btn-sm" onclick="deleteCurrentQuiz()">Delete</button>
+            <button class="btn btn-navy btn-sm" onclick="saveCurrentQuiz()">Save Changes</button>
+          </div>
+        </div>
+
+        <div class="tab-nav">
+          <button class="tab-btn active" onclick="showTab('info')">Quiz Info</button>
+          <button class="tab-btn" onclick="showTab('questions')">Questions</button>
+          <button class="tab-btn" onclick="showTab('results')">Results</button>
+          <button class="tab-btn" onclick="showTab('flags')">Issue Flags</button>
+          <button class="tab-btn" onclick="showTab('lead')">Lead Capture</button>
+        </div>
+
+        <div class="editor-scroll" id="editor-scroll">
+          <!-- Tab: Info -->
+          <div class="tab-content active" id="tab-info">
+            <div style="max-width:560px;display:flex;flex-direction:column;gap:1rem;">
+              <div class="form-group">
+                <label>Quiz Title *</label>
+                <input type="text" id="f-title" placeholder="SF-86 Readiness Check">
+              </div>
+              <div class="form-group">
+                <label>Subtitle</label>
+                <input type="text" id="f-subtitle" placeholder="Do you have any security clearance red flags?">
+              </div>
+              <div class="form-group">
+                <label>URL Slug</label>
+                <input type="text" id="f-slug" placeholder="sf86-red-flags">
+                <span class="hint">Used in the quiz URL: quiz.html?id=<em>slug</em></span>
+              </div>
+              <div class="form-group">
+                <label>Grounding Note <span style="color:var(--text-3);font-weight:400">(optional)</span></label>
+                <textarea id="f-grounding" rows="4" placeholder="Optional legal/regulatory context shown at the bottom of the quiz…"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Questions -->
+          <div class="tab-content" id="tab-questions">
+            <div id="questions-list"></div>
+            <button class="btn btn-outline" onclick="addQuestion()" style="margin-top:0.5rem;">+ Add Question</button>
+          </div>
+
+          <!-- Tab: Results -->
+          <div class="tab-content" id="tab-results">
+            <p class="text-muted" style="margin-bottom:1.25rem;">Each quiz has 5 result tiers. Answers map to tiers 1–5; the highest tier triggered is shown. Tier 1 only shows if no higher tier was flagged.</p>
+            <div id="results-list"></div>
+          </div>
+
+          <!-- Tab: Issue Flags -->
+          <div class="tab-content" id="tab-flags">
+            <p class="text-muted" style="margin-bottom:1rem;">The flag library for this quiz. Flags are attached to answer options in the Questions tab. The top 3 triggered flags show on the result screen.</p>
+            <div id="flags-list" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.75rem;"></div>
+            <div style="display:flex;gap:0.5rem;max-width:400px;">
+              <input type="text" id="new-flag-input" placeholder="Add a new flag…" onkeydown="if(event.key==='Enter')addFlag()">
+              <button class="btn btn-outline" onclick="addFlag()">Add</button>
+            </div>
+          </div>
+
+          <!-- Tab: Lead Capture -->
+          <div class="tab-content" id="tab-lead">
+            <div style="max-width:560px;">
+              <p class="text-muted" style="margin-bottom:1.25rem;">The lead capture form appears after the result is shown. Toggle which fields to collect.</p>
+
+              <h3 style="margin-bottom:0.75rem;font-size:0.875rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em;">Standard Fields</h3>
+              <div class="field-toggle-list" style="margin-bottom:1.5rem;">
+                <div class="field-toggle">
+                  <div class="field-toggle-label">Full Name <span class="sub">Always required</span></div>
+                  <button class="toggle-switch on" style="opacity:0.5;cursor:default;"></button>
+                </div>
+                <div class="field-toggle">
+                  <div class="field-toggle-label">Email <span class="sub">Always required</span></div>
+                  <button class="toggle-switch on" style="opacity:0.5;cursor:default;"></button>
+                </div>
+                <div class="field-toggle" id="toggle-phone-wrap">
+                  <div class="field-toggle-label">Phone <span class="sub">Optional field</span></div>
+                  <button class="toggle-switch" id="toggle-phone" onclick="toggleField('phone')"></button>
+                </div>
+                <div class="field-toggle" id="toggle-deadline-wrap">
+                  <div class="field-toggle-label">Deadline question <span class="sub">"Are you facing a deadline?"</span></div>
+                  <button class="toggle-switch" id="toggle-deadline" onclick="toggleField('deadline')"></button>
+                </div>
+              </div>
+
+              <h3 style="margin-bottom:0.75rem;font-size:0.875rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em;">Issue Type Dropdown</h3>
+              <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.82rem;">Add options for an "issue type" dropdown. Leave empty to hide this field.</p>
+              <div class="form-group" style="margin-bottom:0.75rem;">
+                <label>Dropdown label</label>
+                <input type="text" id="f-issuetype-label" placeholder="What type of issue?">
+              </div>
+              <div id="issuetype-list" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.75rem;"></div>
+              <div style="display:flex;gap:0.5rem;">
+                <input type="text" id="new-issuetype-input" placeholder="Add option (e.g. Debt)" onkeydown="if(event.key==='Enter')addIssueType()">
+                <button class="btn btn-outline" onclick="addIssueType()">Add</button>
+              </div>
+            </div>
+          </div>
+        </div><!-- /editor-scroll -->
+      </div><!-- /quiz-editor -->
+    </div><!-- /editor-panel -->
+  </div><!-- /builder-body -->
+
+  <script>
+const SEED_QUIZZES=[{id:'sf86-red-flags',slug:'sf86-red-flags',title:'SF-86 Readiness Check',subtitle:'Do You Have Any Security Clearance Red Flags?',groundingNote:'',questions:[{id:'sf86-q1',order:1,text:'Where are you in the security clearance process?',options:[{id:'sf86-q1o1',text:'I have not submitted the SF-86/SF-85 yet',tier:1,flags:[]},{id:'sf86-q1o2',text:'I already submitted the SF-86/SF-85',tier:1,flags:[]},{id:'sf86-q1o3',text:'I received a Letter of Interrogatory (LOI), Statement of Reasons (SOR), denial, suspension, or revocation notice',tier:5,flags:['LOI, SOR, or formal government action']}]},{id:'sf86-q2',order:2,text:'Do you have complete residence, education, employment, foreign travel, and/or criminal record history?',options:[{id:'sf86-q2o1',text:'Yes',tier:1,flags:[]},{id:'sf86-q2o2',text:'Mostly, but I am missing some dates, supporting documents, addresses, or supervisor/contact information',tier:2,flags:['Information gaps']},{id:'sf86-q2o3',text:'I have gaps I am not sure how to explain',tier:2,flags:['Information gaps']}]},{id:'sf86-q3',order:3,text:'Do you have any foreign contacts, foreign relatives, foreign travel, dual citizenship, foreign property, or foreign financial interests?',options:[{id:'sf86-q3o1',text:'No',tier:1,flags:[]},{id:'sf86-q3o2',text:'Yes, but straightforward',tier:1,flags:[]},{id:'sf86-q3o3',text:'Yes, and I am not sure what must be listed',tier:3,flags:['Foreign interests or contacts']},{id:'sf86-q3o4',text:'Yes, and the country or relationship may raise concerns',tier:3,flags:['Foreign interests or contacts']}]},{id:'sf86-q4',order:4,text:'Do you have financial issues?',options:[{id:'sf86-q4o1',text:'No',tier:1,flags:[]},{id:'sf86-q4o2',text:'Past late payments, now resolved',tier:3,flags:['Financial issue']},{id:'sf86-q4o3',text:'Current delinquent debt',tier:3,flags:['Financial issue','Current delinquency']},{id:'sf86-q4o4',text:'Tax debt, collections, charge-offs, bankruptcy, wage garnishment, or foreclosure',tier:3,flags:['Financial issue','Tax or bankruptcy issue']},{id:'sf86-q4o5',text:'I am not sure what appears on my credit report',tier:2,flags:['Unknown credit report issue']}]},{id:'sf86-q5',order:5,text:'Any police, criminal, or court history?',options:[{id:'sf86-q5o1',text:'No',tier:1,flags:[]},{id:'sf86-q5o2',text:'Yes — older or minor issue, now resolved',tier:3,flags:['Police or court history']},{id:'sf86-q5o3',text:'Yes — recent or still pending',tier:3,flags:['Police or court history','Pending legal matter']},{id:'sf86-q5o4',text:'Yes — serious or sensitive matters',tier:3,flags:['Police or court history','Serious criminal matter']},{id:'sf86-q5o5',text:"I'm not sure whether I need to disclose it",tier:4,flags:['Disclosure concern']}]},{id:'sf86-q6',order:6,text:'Any drug, marijuana, CBD/delta, or controlled substance issue?',options:[{id:'sf86-q6o1',text:'No',tier:1,flags:[]},{id:'sf86-q6o2',text:'Past marijuana/THC or controlled substance use',tier:3,flags:['Drug or substance issue']},{id:'sf86-q6o3',text:'Recent marijuana/THC or controlled substance use',tier:3,flags:['Drug or substance issue']},{id:'sf86-q6o4',text:'Use while cleared or after starting the clearance process',tier:3,flags:['Drug use while cleared']},{id:'sf86-q6o5',text:'I am not sure how to answer',tier:4,flags:['Disclosure concern']}]},{id:'sf86-q7',order:7,text:'Any alcohol-related incidents?',options:[{id:'sf86-q7o1',text:'No',tier:1,flags:[]},{id:'sf86-q7o2',text:'One older incident',tier:3,flags:['Alcohol incident']},{id:'sf86-q7o3',text:'Recent incident(s)',tier:3,flags:['Alcohol incident']},{id:'sf86-q7o4',text:'Work, school, or military alcohol issue',tier:3,flags:['Alcohol incident']},{id:'sf86-q7o5',text:'Treatment, relapse, or repeated incidents',tier:3,flags:['Alcohol or treatment issue']}]},{id:'sf86-q8',order:8,text:'Have you had a prior clearance issue?',options:[{id:'sf86-q8o1',text:'No',tier:1,flags:[]},{id:'sf86-q8o2',text:'Prior interim clearance denied',tier:3,flags:['Prior clearance issue']},{id:'sf86-q8o3',text:'Prior clearance denied, suspended, or revoked',tier:3,flags:['Prior clearance issue']},{id:'sf86-q8o4',text:'Prior SOR/LOI/interrogatories',tier:3,flags:['Prior clearance issue']},{id:'sf86-q8o5',text:'I previously omitted or misstated something',tier:4,flags:['Disclosure concern','Prior omission or misstatement']}]},{id:'sf86-q9',order:9,text:'Are you worried about inconsistent, incomplete, or inaccurate answers?',options:[{id:'sf86-q9o1',text:'No',tier:1,flags:[]},{id:'sf86-q9o2',text:'Maybe',tier:4,flags:['Disclosure concern']},{id:'sf86-q9o3',text:'Yes, I omitted something',tier:4,flags:['Disclosure concern','Omission']},{id:'sf86-q9o4',text:'Yes, I gave different information before',tier:4,flags:['Disclosure concern','Inconsistent information']},{id:'sf86-q9o5',text:'Yes, I already submitted and need to correct something',tier:4,flags:['Disclosure concern','Correction needed']}]}],results:[{tier:1,label:'Ready to Submit — Keep It Accurate',forPeopleWith:'Complete history, no major issues, and no inconsistency concerns.',message:'Your answers suggest you may be in a good position to continue preparing your questionnaire. The most important next step is accuracy.',ctaText:'Download the SF-86 final review checklist',ctaType:'download'},{tier:2,label:'Information Gaps — Gather Details Before Submitting',forPeopleWith:'People missing dates, addresses, employment details, or court records.',message:'Your answers suggest the biggest issue may not be a legal red flag, but missing or incomplete information.',ctaText:'Get the SF-86 document checklist',ctaType:'download'},{tier:3,label:'Potential Red Flags — Explanation May Matter',forPeopleWith:'People with debt, foreign contacts, drug use, alcohol issues, or police history.',message:'Your answers suggest one or more areas may require careful explanation. A red flag does not automatically mean denial, but the way you disclose, explain, and document the issue can matter.',ctaText:'Schedule a pre-submission clearance consultation',ctaType:'schedule'},{tier:4,label:'Disclosure Accuracy Concern — Be Careful Before Submitting, Updating, or Correcting',forPeopleWith:'People who already submitted, omitted something, gave inconsistent information, or are worried they answered incorrectly.',message:'Your answers suggest the issue may involve disclosure accuracy, consistency, or completeness.',ctaText:'Speak with a clearance attorney before submitting a correction',ctaType:'contact'},{tier:5,label:'Government Action — High Urgency',forPeopleWith:'People who received an LOI, SOR, interrogatories, suspension, revocation, denial, or hearing notice.',message:'Your answers suggest the matter may already be in a response or appeal stage.',ctaText:'Request an urgent case review',ctaType:'contact'}],availableFlags:['Information gaps','Foreign interests or contacts','Financial issue','Current delinquency','Tax or bankruptcy issue','Unknown credit report issue','Police or court history','Pending legal matter','Serious criminal matter','Drug or substance issue','Drug use while cleared','Alcohol incident','Alcohol or treatment issue','Prior clearance issue','Disclosure concern','Prior omission or misstatement','Omission','Inconsistent information','Correction needed','LOI, SOR, or formal government action'],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}},{id:'debt-taxes-clearance-risk',slug:'debt-taxes-clearance-risk',title:'Debt, Taxes & Security Clearance Risk Check',subtitle:'Could Your Financial Issue Affect Your Clearance?',groundingNote:"Financial considerations are a recognized security clearance adjudicative area.",questions:[{id:'dt-q1',order:1,text:'Where are you in the security clearance or public trust process?',options:[{id:'dt-q1o1',text:'I have not submitted the SF-86/SF-85/SF-85P yet',tier:1,flags:[]},{id:'dt-q1o2',text:'I already submitted and/or have an investigator interview coming up',tier:1,flags:[]},{id:'dt-q1o3',text:'I currently hold a clearance, public trust, or sensitive position',tier:1,flags:[]}]},{id:'dt-q2',order:2,text:'What financial issue are you most concerned about?',options:[{id:'dt-q2o1',text:'No specific financial issue — I am just checking',tier:1,flags:[]},{id:'dt-q2o2',text:'Debt, late payments, collections, charge-offs, or unpaid loans',tier:3,flags:['Financial issue','Debt or collections']},{id:'dt-q2o3',text:'Tax debt, unfiled taxes, IRS issue, or state tax issue',tier:3,flags:['Financial issue','Tax issue']},{id:'dt-q2o4',text:'Bankruptcy, judgment, lien, garnishment, foreclosure, repossession, or eviction',tier:3,flags:['Financial issue','Bankruptcy or judgment']},{id:'dt-q2o5',text:'Gambling, unexplained income/assets, business debt, or multiple financial issues',tier:3,flags:['Financial issue','Gambling or unexplained assets']}]},{id:'dt-q3',order:3,text:'What is the current status of the issue?',options:[{id:'dt-q3o1',text:'There is no financial issue',tier:1,flags:[]},{id:'dt-q3o2',text:'Resolved, paid, discharged, settled, or no longer delinquent',tier:3,flags:['Resolved financial issue']},{id:'dt-q3o3',text:'I am on a payment plan, tax agreement, credit counseling plan, or repayment schedule',tier:3,flags:['Payment plan or tax agreement']},{id:'dt-q3o4',text:'It is still delinquent, unpaid, unresolved, or I do not have a plan yet',tier:4,flags:['Active financial concern','Current delinquency']},{id:'dt-q3o5',text:'There is active legal or collection action',tier:4,flags:['Active financial concern','Active legal or collection action']}]},{id:'dt-q4',order:4,text:'What caused the financial issue?',options:[{id:'dt-q4o1',text:'There is no financial issue',tier:1,flags:[]},{id:'dt-q4o2',text:'Job loss, medical issue, divorce/separation, family emergency, or another hardship',tier:3,flags:['Financial hardship']},{id:'dt-q4o3',text:'Missed payments, budgeting problems, overspending, or repeated late payments',tier:4,flags:['Financial issue','Repeated financial problems']},{id:'dt-q4o4',text:'Tax filing/payment problem or accounting issue',tier:3,flags:['Tax issue']},{id:'dt-q4o5',text:'Gambling, unexplained income/assets, or I am not sure how to explain it',tier:4,flags:['Gambling or unexplained assets']}]},{id:'dt-q5',order:5,text:'What steps have you taken to address it?',options:[{id:'dt-q5o1',text:'No financial issue to address',tier:1,flags:[]},{id:'dt-q5o2',text:'Paid, resolved, settled, discharged, or corrected it',tier:3,flags:['Resolved financial issue']},{id:'dt-q5o3',text:'Set up a payment plan or tax agreement and I am following it',tier:3,flags:['Payment plan or tax agreement']},{id:'dt-q5o4',text:'I am trying to figure out what to do but do not have a clear plan yet',tier:4,flags:['Active financial concern']},{id:'dt-q5o5',text:'No steps yet, stopped paying, ignored it, or fell behind on a plan',tier:4,flags:['Active financial concern','No action taken']}]},{id:'dt-q6',order:6,text:'Do you have documents showing what happened and what you have done?',options:[{id:'dt-q6o1',text:'Yes, I have organized records and proof',tier:1,flags:[]},{id:'dt-q6o2',text:'Some, but I am missing key records',tier:2,flags:['Missing financial records']},{id:'dt-q6o3',text:'No, not yet',tier:2,flags:['Missing financial records']},{id:'dt-q6o4',text:'I am not sure what documents I need',tier:2,flags:['Missing financial records','Documentation gap']}]},{id:'dt-q7',order:7,text:'Are you worried about how you disclosed or explained the financial issue?',options:[{id:'dt-q7o1',text:'No',tier:1,flags:[]},{id:'dt-q7o2',text:'Maybe — I have not submitted yet',tier:2,flags:['Disclosure concern']},{id:'dt-q7o3',text:'Maybe — I submitted and am not sure whether I answered correctly',tier:5,flags:['Disclosure accuracy concern']},{id:'dt-q7o4',text:'Yes, I omitted something or gave the wrong dates, amounts, or status',tier:5,flags:['Disclosure accuracy concern','Omission or misstatement']},{id:'dt-q7o5',text:'Yes, I gave different information before',tier:5,flags:['Disclosure accuracy concern','Inconsistent information']},{id:'dt-q7o6',text:'I hold a clearance and am not sure whether I need to self-report it',tier:5,flags:['Self-reporting concern']}]},{id:'dt-q8',order:8,text:'Has anyone contacted you about the financial issue?',options:[{id:'dt-q8o1',text:'No',tier:1,flags:[]},{id:'dt-q8o2',text:'An investigator, FSO, security office, HR, command, or supervisor asked basic questions',tier:4,flags:['Government or security office contact']},{id:'dt-q8o3',text:'I was asked for a written statement, documents, or explanation',tier:5,flags:['Written request from government']},{id:'dt-q8o4',text:'I received an LOI, SOR, interrogatories, denial, suspension, revocation, hearing notice, or appeal deadline',tier:5,flags:['LOI, SOR, or formal government action']},{id:'dt-q8o5',text:'I have a deadline, the deadline passed, or I am not sure when something is due',tier:5,flags:['Deadline concern']}]},{id:'dt-q9',order:9,text:'What would you like help with?',options:[{id:'dt-q9o1',text:'Understanding whether the financial issue matters',tier:1,flags:[]},{id:'dt-q9o2',text:'Preparing for the SF-86/SF-85/SF-85P or investigator interview',tier:1,flags:[]},{id:'dt-q9o3',text:'Gathering documents or explaining mitigation',tier:3,flags:['Documentation needed']},{id:'dt-q9o4',text:'Fixing, updating, or self-reporting a prior answer',tier:5,flags:['Disclosure accuracy concern']},{id:'dt-q9o5',text:'Responding to LOI/SOR/interrogatories, denial, suspension, revocation, or appeal',tier:5,flags:['LOI, SOR, or formal government action']}]}],results:[{tier:1,label:'No Major Financial Issue Flagged — Keep It Accurate',forPeopleWith:'People with no financial issue, no missing records, no disclosure concern, and no government contact.',message:'Your answers did not flag an obvious financial clearance concern. Keep your information complete and consistent.',ctaText:'Download the Financial Clearance Final Review Checklist',ctaType:'download'},{tier:2,label:'Information or Documentation Gap — Pull Records First',forPeopleWith:'People with unknown credit issues, missing documents, or unclear payment status.',message:'Your answers suggest the biggest issue may be incomplete information. Gather the records needed to understand the issue clearly.',ctaText:'Get the Financial Records Checklist',ctaType:'download'},{tier:3,label:'Resolved or Managed Financial Issue — Document Your Mitigation',forPeopleWith:'People with past debt, tax issues, or bankruptcy that has been resolved or is on a payment plan.',message:'Your answers suggest the financial issue may already be resolved or being handled. The key is showing what happened, what changed, and what documents support your explanation.',ctaText:'Get the Financial Mitigation Checklist',ctaType:'download'},{tier:4,label:'Active Financial Concern — Action Plan May Matter',forPeopleWith:'People with current delinquent debt, unpaid taxes, unresolved collections, or ongoing financial problems.',message:'Your answers suggest there may be an active financial issue that needs attention. A financial red flag does not automatically decide the outcome, but how you address and explain it can matter.',ctaText:'Schedule a Financial Clearance Strategy Consultation',ctaType:'schedule'},{tier:5,label:'Disclosure or Government Action Concern — High Urgency',forPeopleWith:'People with a possible omission, self-reporting concern, written request, LOI, SOR, denial, suspension, revocation, or deadline.',message:'Your answers suggest the issue may involve disclosure accuracy or a government response stage. Identify the document type, deadline, agency, and allegations before submitting anything.',ctaText:'Request an Urgent Financial Clearance Case Review',ctaType:'contact'}],availableFlags:['Financial issue','Debt or collections','Tax issue','Bankruptcy or judgment','Gambling or unexplained assets','Resolved financial issue','Payment plan or tax agreement','Active financial concern','Current delinquency','Active legal or collection action','Financial hardship','Repeated financial problems','No action taken','Missing financial records','Documentation gap','Documentation needed','Disclosure concern','Disclosure accuracy concern','Omission or misstatement','Inconsistent information','Self-reporting concern','Government or security office contact','Written request from government','LOI, SOR, or formal government action','Deadline concern'],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'What type of issue?',issueTypeOptions:['Debt','Taxes','Bankruptcy','Collections','Garnishment','SOR or LOI','Other']}},{id:'self-reporting-checker',slug:'self-reporting-checker',title:'Self-Reporting Checker',subtitle:'Do You Need to Report This to Your Security Office?',groundingNote:"DCSA says clearance holders are required to self-report life events or incidents that could affect clearance eligibility.",questions:[{id:'sr-q1',order:1,text:'What best describes your current status?',options:[{id:'sr-q1o1',text:'I currently hold a security clearance',tier:1,flags:[]},{id:'sr-q1o2',text:'I hold a public trust or sensitive position',tier:1,flags:[]},{id:'sr-q1o3',text:'I am an applicant or recently submitted, but I do not hold the clearance/position yet',tier:2,flags:['May not be covered by self-reporting requirements']},{id:'sr-q1o4',text:'My access, clearance, or position is already suspended, restricted, or under review',tier:5,flags:['Access suspended or under review']}]},{id:'sr-q2',order:2,text:'Any foreign travel, foreign contact, or foreign interest issue?',options:[{id:'sr-q2o1',text:'No',tier:1,flags:[]},{id:'sr-q2o2',text:'Foreign travel outside the U.S.',tier:3,flags:['Foreign travel']},{id:'sr-q2o3',text:'Foreign spouse, partner, roommate, close contact, or continuing foreign contact',tier:3,flags:['Foreign contact or relationship']},{id:'sr-q2o4',text:'Foreign citizenship, passport, voting, property, bank account, business, or financial interest',tier:3,flags:['Foreign citizenship or financial interest']},{id:'sr-q2o5',text:'I am not sure what foreign-related information counts',tier:2,flags:['Uncertainty about foreign reporting']}]},{id:'sr-q3',order:3,text:'Any police, criminal, DUI, or court issue?',options:[{id:'sr-q3o1',text:'No',tier:1,flags:[]},{id:'sr-q3o2',text:'Older or minor matter, now resolved',tier:2,flags:['Police or court history']},{id:'sr-q3o3',text:'Recent arrest, charge, DUI/DWI, summons, upcoming court date, probation/parole, or unresolved case',tier:3,flags:['Police or court history','Recent or pending legal matter']},{id:'sr-q3o4',text:'Serious or sensitive matter (felony, domestic violence, protective order, violence, or firearms)',tier:3,flags:['Police or court history','Serious criminal matter']},{id:'sr-q3o5',text:'I am not sure whether I need to report it',tier:2,flags:['Disclosure uncertainty']}]},{id:'sr-q4',order:4,text:'Any financial issue?',options:[{id:'sr-q4o1',text:'No',tier:1,flags:[]},{id:'sr-q4o2',text:'Past financial issue, now resolved',tier:2,flags:['Financial issue']},{id:'sr-q4o3',text:'Current delinquent debt, collections, or inability to meet financial obligations',tier:3,flags:['Financial issue','Current delinquency']},{id:'sr-q4o4',text:'Tax debt, bankruptcy, wage garnishment, lien, foreclosure, or eviction',tier:3,flags:['Financial issue','Tax or bankruptcy issue']},{id:'sr-q4o5',text:'I am not sure what appears on my credit report or public records',tier:2,flags:['Unknown credit or public records']}]},{id:'sr-q5',order:5,text:'Any drug, alcohol, substance, or treatment-related issue?',options:[{id:'sr-q5o1',text:'No',tier:1,flags:[]},{id:'sr-q5o2',text:'Older isolated issue, now resolved',tier:2,flags:['Drug or alcohol issue']},{id:'sr-q5o3',text:'Recent marijuana/THC, drug, CBD/delta, or positive drug test issue',tier:3,flags:['Drug or substance issue']},{id:'sr-q5o4',text:'DUI/DWI, alcohol-related incident, or work/school/military alcohol issue',tier:3,flags:['Alcohol incident']},{id:'sr-q5o5',text:'Substance abuse counseling/treatment, relapse, or counseling ordered because of conduct',tier:3,flags:['Substance counseling or treatment']}]},{id:'sr-q6',order:6,text:'Any classified information, security, cyber, media, or outside activity issue?',options:[{id:'sr-q6o1',text:'No',tier:1,flags:[]},{id:'sr-q6o2',text:'Lost or mishandled classified/sensitive information, badge, device, credentials, or government property',tier:5,flags:['Classified information or security incident']},{id:'sr-q6o3',text:'Possible unauthorized disclosure, spillage, cyber/IT misuse, or security violation',tier:5,flags:['Unauthorized disclosure or cyber issue']},{id:'sr-q6o4',text:'Foreign person asked about sensitive work, suspicious contact, coercion, or blackmail',tier:5,flags:['Suspicious contact or coercion']},{id:'sr-q6o5',text:'Outside employment, foreign business, media contact, publication, or concern about another covered person',tier:3,flags:['Outside activity or media contact']}]},{id:'sr-q7',order:7,text:'Have you already reported the issue?',options:[{id:'sr-q7o1',text:'No, I have not reported it yet',tier:1,flags:[]},{id:'sr-q7o2',text:'Yes, I reported it verbally or informally',tier:2,flags:['Informal report only']},{id:'sr-q7o3',text:'Yes, I reported it in writing',tier:1,flags:[]},{id:'sr-q7o4',text:'I may have waited too long',tier:4,flags:['Reporting delay']},{id:'sr-q7o5',text:'I may have left something out or given inconsistent details',tier:4,flags:['Incomplete or inconsistent report']}]},{id:'sr-q8',order:8,text:'Has anyone contacted you, or is there a deadline?',options:[{id:'sr-q8o1',text:'No',tier:1,flags:[]},{id:'sr-q8o2',text:'My FSO, security office, HR, command, or supervisor asked basic follow-up questions',tier:3,flags:['Security office contact']},{id:'sr-q8o3',text:'I was asked for a written statement, documents, or explanation',tier:5,flags:['Written request from security office']},{id:'sr-q8o4',text:'My access was suspended/restricted, or I received formal written questions or notice',tier:5,flags:['Access suspended or formal notice']},{id:'sr-q8o5',text:'I have a deadline, the deadline passed, or I am not sure when it is due',tier:5,flags:['Deadline concern']}]},{id:'sr-q9',order:9,text:'What would you like help with?',options:[{id:'sr-q9o1',text:'Figuring out whether or how to report something',tier:2,flags:[]},{id:'sr-q9o2',text:'Preparing a self-report or explanation',tier:3,flags:[]},{id:'sr-q9o3',text:'Fixing a late, incomplete, or inconsistent report',tier:4,flags:[]},{id:'sr-q9o4',text:'Responding to security questions, a deadline, suspension, or access restriction',tier:5,flags:[]},{id:'sr-q9o5',text:'Just understanding my risk',tier:1,flags:[]}]}],results:[{tier:1,label:'No Obvious Reporting Trigger Flagged — Confirm Agency Rules',forPeopleWith:'People with no flagged event, no government contact, and no security-sensitive issue.',message:'Your answers did not flag an obvious self-reporting trigger. Reporting procedures can vary by agency, so keep records and follow your security office guidance if anything changes.',ctaText:'Download the Security Clearance Self-Reporting Checklist',ctaType:'download'},{tier:2,label:'Possible Reporting Issue — Clarify Before You Assume',forPeopleWith:'People with uncertainty about whether they are covered, older/minor resolved issues, or informal reporting.',message:'Your answers suggest the reporting answer may depend on details. Gather the dates, documents, people involved, current status, and any agency or FSO instructions.',ctaText:'Get the Self-Reporting Preparation Checklist',ctaType:'download'},{tier:3,label:'Likely Self-Reporting Issue — Prepare a Clear Report',forPeopleWith:'People with foreign travel, foreign contacts, arrests, DUI/court issues, financial problems, or outside activities.',message:'Your answers suggest the event may fall within a self-reporting category. Prepare a clear, accurate summary of what happened, when, who was involved, and what documents support your explanation.',ctaText:'Schedule a Self-Reporting Strategy Consultation',ctaType:'schedule'},{tier:4,label:'Delay or Disclosure Concern — Be Careful Before Correcting',forPeopleWith:'People with a late report, incomplete report, inconsistent details, or omitted facts.',message:'Your answers suggest the issue may involve not only what happened, but also how and when it was reported. Organize the timeline and reason the earlier report was delayed or incomplete before correcting.',ctaText:'Speak with a clearance attorney before correcting or supplementing a report',ctaType:'contact'},{tier:5,label:'Security Incident, Formal Inquiry, or Deadline — High Urgency',forPeopleWith:'People with classified information issues, unauthorized disclosure, suspicious contact, written security questions, access restriction, or deadline.',message:'Your answers suggest this may require prompt attention. Identify the security issue, who contacted you, the deadline, and what documents were requested before submitting anything further.',ctaText:'Request an urgent case review',ctaType:'contact'}],availableFlags:['Foreign travel','Foreign contact or relationship','Foreign citizenship or financial interest','Uncertainty about foreign reporting','Police or court history','Recent or pending legal matter','Serious criminal matter','Disclosure uncertainty','Financial issue','Current delinquency','Tax or bankruptcy issue','Unknown credit or public records','Drug or alcohol issue','Drug or substance issue','Alcohol incident','Substance counseling or treatment','Classified information or security incident','Unauthorized disclosure or cyber issue','Suspicious contact or coercion','Outside activity or media contact','Informal report only','Reporting delay','Incomplete or inconsistent report','Security office contact','Written request from security office','Access suspended or formal notice','Access suspended or under review','May not be covered by self-reporting requirements','Deadline concern'],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}}];
+  </script>
+  <script>
+const KEYS={quizzes:'ql_quizzes',responses:'ql_responses'};
+const Storage={
+  init(){if(!localStorage.getItem(KEYS.quizzes))localStorage.setItem(KEYS.quizzes,JSON.stringify(SEED_QUIZZES));},
+  getQuizzes(){return JSON.parse(localStorage.getItem(KEYS.quizzes)||'[]');},
+  getQuiz(id){return this.getQuizzes().find(q=>q.id===id||q.slug===id)||null;},
+  saveQuiz(quiz){const qs=this.getQuizzes();const i=qs.findIndex(q=>q.id===quiz.id);if(i>=0)qs[i]=quiz;else qs.push(quiz);localStorage.setItem(KEYS.quizzes,JSON.stringify(qs));},
+  deleteQuiz(id){localStorage.setItem(KEYS.quizzes,JSON.stringify(this.getQuizzes().filter(q=>q.id!==id)));},
+  getResponses(){return JSON.parse(localStorage.getItem(KEYS.responses)||'[]');},
+  saveResponse(r){const rs=this.getResponses();rs.unshift(r);localStorage.setItem(KEYS.responses,JSON.stringify(rs));},
+  deleteResponse(id){localStorage.setItem(KEYS.responses,JSON.stringify(this.getResponses().filter(r=>r.id!==id)));},
+  clearResponses(){localStorage.setItem(KEYS.responses,'[]');},
+  scoreAnswers(quiz,opts){let max=1;const flags=[];for(const o of opts){if(o.tier>max)max=o.tier;for(const f of o.flags)if(!flags.includes(f))flags.push(f);}return{tier:max,result:quiz.results.find(r=>r.tier===max),flags:flags.slice(0,3)};},
+  generateId(){return'id_'+Math.random().toString(36).slice(2,10)+'_'+Date.now().toString(36);}
+};
+  </script>
+  <script>
+    let currentQuizId = null;
+    let draft = null; // in-memory copy being edited
+
+    // ── Init ─────────────────────────────────────
+
+    function init() {
+      Storage.init();
+      renderSidebar();
+      // Auto-select first quiz if any
+      const quizzes = Storage.getQuizzes();
+      if (quizzes.length) selectQuiz(quizzes[0].id);
+    }
+
+    // ── Sidebar ───────────────────────────────────
+
+    function renderSidebar() {
+      const quizzes = Storage.getQuizzes();
+      const list = document.getElementById('sidebar-list');
+      if (!quizzes.length) {
+        list.innerHTML = '<div style="padding:1rem;font-size:0.8rem;color:rgba(255,255,255,0.4);text-align:center;">No quizzes yet</div>';
+        return;
+      }
+      list.innerHTML = quizzes.map(q => `
+        <button class="quiz-item${q.id === currentQuizId ? ' active' : ''}" onclick="selectQuiz('${q.id}')">
+          ${escHtml(q.title)}
+        </button>
+      `).join('');
+    }
+
+    function selectQuiz(id) {
+      currentQuizId = id;
+      draft = JSON.parse(JSON.stringify(Storage.getQuiz(id)));
+      renderSidebar();
+      renderEditor();
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('quiz-editor').classList.remove('hidden');
+      document.getElementById('quiz-editor').style.display = 'flex';
+    }
+
+    // ── Tab switching ─────────────────────────────
+
+    function showTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        const tabs = ['info','questions','results','flags','lead'];
+        b.classList.toggle('active', tabs[i] === tab);
+      });
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    // ── Editor rendering ──────────────────────────
+
+    function renderEditor() {
+      if (!draft) return;
+      document.getElementById('editor-title').textContent = draft.title || 'Untitled Quiz';
+      document.getElementById('preview-link').href = `quiz.html?id=${encodeURIComponent(draft.id)}`;
+
+      // Info tab
+      document.getElementById('f-title').value    = draft.title    || '';
+      document.getElementById('f-subtitle').value = draft.subtitle || '';
+      document.getElementById('f-slug').value     = draft.id       || '';
+      document.getElementById('f-grounding').value= draft.groundingNote || '';
+
+      // Questions tab
+      renderQuestions();
+
+      // Results tab
+      renderResults();
+
+      // Flags tab
+      renderFlags();
+
+      // Lead capture tab
+      renderLeadCapture();
+    }
+
+    // ── Questions ─────────────────────────────────
+
+    function renderQuestions() {
+      const list = document.getElementById('questions-list');
+      if (!draft.questions.length) {
+        list.innerHTML = '<p class="text-muted" style="margin-bottom:1rem;">No questions yet. Add one below.</p>';
+        return;
+      }
+      list.innerHTML = draft.questions.map((q, qi) => buildQuestionCard(q, qi)).join('');
+    }
+
+    function buildQuestionCard(q, qi) {
+      const optionsHtml = q.options.map((opt, oi) => buildOptionRow(opt, qi, oi)).join('');
+      return `
+        <div class="question-card" id="qcard-${qi}">
+          <div class="question-card-header">
+            <div class="q-number">${qi + 1}</div>
+            <input type="text" value="${escAttr(q.text)}" placeholder="Question text…"
+                   oninput="updateQuestionText(${qi}, this.value)">
+            <div class="q-controls">
+              <button class="icon-btn" title="Move up"    onclick="moveQuestion(${qi}, -1)" ${qi===0?'disabled':''}>↑</button>
+              <button class="icon-btn" title="Move down"  onclick="moveQuestion(${qi},  1)" ${qi===draft.questions.length-1?'disabled':''}>↓</button>
+              <button class="icon-btn danger" title="Delete question" onclick="deleteQuestion(${qi})">×</button>
+            </div>
+          </div>
+          <div class="options-editor">
+            <div id="opts-${qi}">${optionsHtml}</div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:0.4rem;" onclick="addOption(${qi})">+ Add option</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function buildOptionRow(opt, qi, oi) {
+      const flagCount = opt.flags.length;
+      const hasFlagsClass = flagCount > 0 ? ' has-flags' : '';
+      const tierOptions = [1,2,3,4,5].map(t =>
+        `<option value="${t}" ${opt.tier===t?'selected':''}>${t}</option>`
+      ).join('');
+
+      return `
+        <div class="option-row" id="opt-${qi}-${oi}">
+          <span class="option-drag">⠿</span>
+          <textarea class="option-text" rows="1"
+                    oninput="updateOptionText(${qi},${oi},this.value)">${escHtml(opt.text)}</textarea>
+          <select class="option-tier" title="Result tier" onchange="updateOptionTier(${qi},${oi},this.value)">
+            ${tierOptions}
+          </select>
+          <div class="flags-btn" id="flagsbtn-${qi}-${oi}">
+            <button class="flags-pill${hasFlagsClass}"
+                    onclick="toggleFlagsDropdown(event,${qi},${oi})">
+              🏷 ${flagCount > 0 ? flagCount + ' flag' + (flagCount>1?'s':'') : 'Flags'}
+            </button>
+            <div class="flags-dropdown hidden" id="flagsdrop-${qi}-${oi}">
+              ${buildFlagsDropdown(opt, qi, oi)}
+            </div>
+          </div>
+          <button class="icon-btn danger" title="Delete option" onclick="deleteOption(${qi},${oi})">×</button>
+        </div>
+      `;
+    }
+
+    function buildFlagsDropdown(opt, qi, oi) {
+      const flags = draft.availableFlags || [];
+      const checkboxes = flags.map(f => `
+        <label class="flag-option">
+          <input type="checkbox" ${opt.flags.includes(f)?'checked':''}
+                 onchange="toggleOptionFlag(${qi},${oi},'${escAttr(f)}',this.checked)">
+          ${escHtml(f)}
+        </label>
+      `).join('');
+      return checkboxes + `
+        <div class="add-flag-row">
+          <input type="text" placeholder="New flag…" id="newfl-${qi}-${oi}"
+                 onkeydown="if(event.key==='Enter')addFlagFromOption(${qi},${oi})">
+          <button class="btn btn-outline btn-sm" onclick="addFlagFromOption(${qi},${oi})">Add</button>
+        </div>
+      `;
+    }
+
+    // ── Question mutations ────────────────────────
+
+    function updateQuestionText(qi, val) {
+      draft.questions[qi].text = val;
+    }
+
+    function moveQuestion(qi, dir) {
+      const qs = draft.questions;
+      const ni = qi + dir;
+      if (ni < 0 || ni >= qs.length) return;
+      [qs[qi], qs[ni]] = [qs[ni], qs[qi]];
+      renderQuestions();
+    }
+
+    function deleteQuestion(qi) {
+      if (!confirm('Delete this question?')) return;
+      draft.questions.splice(qi, 1);
+      renderQuestions();
+    }
+
+    function addQuestion() {
+      const newQ = {
+        id: Storage.generateId(),
+        order: draft.questions.length + 1,
+        text: '',
+        options: [
+          { id: Storage.generateId(), text: '', tier: 1, flags: [] },
+        ],
+      };
+      draft.questions.push(newQ);
+      renderQuestions();
+      // Scroll to new question
+      setTimeout(() => {
+        const el = document.getElementById(`qcard-${draft.questions.length - 1}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+    }
+
+    // ── Option mutations ──────────────────────────
+
+    function updateOptionText(qi, oi, val) {
+      draft.questions[qi].options[oi].text = val;
+    }
+
+    function updateOptionTier(qi, oi, val) {
+      draft.questions[qi].options[oi].tier = parseInt(val);
+    }
+
+    function addOption(qi) {
+      draft.questions[qi].options.push({ id: Storage.generateId(), text: '', tier: 1, flags: [] });
+      // Re-render just that question's options
+      const q = draft.questions[qi];
+      document.getElementById(`opts-${qi}`).innerHTML =
+        q.options.map((opt, oi) => buildOptionRow(opt, qi, oi)).join('');
+    }
+
+    function deleteOption(qi, oi) {
+      if (draft.questions[qi].options.length <= 1) { alert('A question must have at least one option.'); return; }
+      draft.questions[qi].options.splice(oi, 1);
+      const q = draft.questions[qi];
+      document.getElementById(`opts-${qi}`).innerHTML =
+        q.options.map((opt, oi) => buildOptionRow(opt, qi, oi)).join('');
+    }
+
+    // ── Flags dropdown ────────────────────────────
+
+    function toggleFlagsDropdown(e, qi, oi) {
+      e.stopPropagation();
+      const drop = document.getElementById(`flagsdrop-${qi}-${oi}`);
+      const wasOpen = !drop.classList.contains('hidden');
+      closeAllDropdowns();
+      if (!wasOpen) {
+        drop.classList.remove('hidden');
+        document.getElementById('overlay').style.display = 'block';
+      }
+    }
+
+    function closeAllDropdowns() {
+      document.querySelectorAll('.flags-dropdown').forEach(d => d.classList.add('hidden'));
+      document.getElementById('overlay').style.display = 'none';
+    }
+
+    function toggleOptionFlag(qi, oi, flag, checked) {
+      const flags = draft.questions[qi].options[oi].flags;
+      if (checked && !flags.includes(flag)) flags.push(flag);
+      if (!checked) {
+        const idx = flags.indexOf(flag);
+        if (idx >= 0) flags.splice(idx, 1);
+      }
+      // Update pill label without closing dropdown
+      const btn = document.querySelector(`#flagsbtn-${qi}-${oi} .flags-pill`);
+      const count = flags.length;
+      if (btn) {
+        btn.textContent = count > 0 ? `🏷 ${count} flag${count>1?'s':''}` : '🏷 Flags';
+        btn.className = 'flags-pill' + (count > 0 ? ' has-flags' : '');
+      }
+    }
+
+    function addFlagFromOption(qi, oi) {
+      const input = document.getElementById(`newfl-${qi}-${oi}`);
+      const val = input.value.trim();
+      if (!val) return;
+      if (!draft.availableFlags) draft.availableFlags = [];
+      if (!draft.availableFlags.includes(val)) draft.availableFlags.push(val);
+      // Check it automatically on this option
+      if (!draft.questions[qi].options[oi].flags.includes(val))
+        draft.questions[qi].options[oi].flags.push(val);
+      // Rebuild this dropdown
+      document.getElementById(`flagsdrop-${qi}-${oi}`).innerHTML =
+        buildFlagsDropdown(draft.questions[qi].options[oi], qi, oi);
+      renderFlags();
+    }
+
+    // ── Results ───────────────────────────────────
+
+    function renderResults() {
+      const TIER_COLORS = ['','#059669','#2563eb','#d97706','#ea580c','#dc2626'];
+      const TIER_LABELS = ['','Tier 1','Tier 2','Tier 3','Tier 4','Tier 5'];
+      const CTA_TYPES   = ['download','schedule','contact','request'];
+
+      const list = document.getElementById('results-list');
+      list.innerHTML = draft.results.map((r, i) => {
+        const t = r.tier;
+        const ctaOpts = CTA_TYPES.map(c =>
+          `<option value="${c}" ${r.ctaType===c?'selected':''}>${c}</option>`
+        ).join('');
+        return `
+          <div class="result-tier-card">
+            <div class="result-tier-header">
+              <span class="tier-badge tier-${t}">${TIER_LABELS[t]}</span>
+              <input type="text" value="${escAttr(r.label)}" placeholder="Result label…"
+                     style="flex:1;border:none;background:transparent;font-weight:600;font-size:0.9rem;"
+                     oninput="updateResult(${i},'label',this.value)">
+            </div>
+            <div class="result-tier-body">
+              <div class="form-group">
+                <label>For people with</label>
+                <input type="text" value="${escAttr(r.forPeopleWith)}" placeholder="Brief description of who gets this result…"
+                       oninput="updateResult(${i},'forPeopleWith',this.value)">
+              </div>
+              <div class="form-group">
+                <label>Message shown to user</label>
+                <textarea rows="3" oninput="updateResult(${i},'message',this.value)">${escHtml(r.message)}</textarea>
+              </div>
+              <div style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;">
+                <div class="form-group" style="flex:1;min-width:200px;">
+                  <label>CTA button text</label>
+                  <input type="text" value="${escAttr(r.ctaText)}" placeholder="e.g. Schedule a Consultation"
+                         oninput="updateResult(${i},'ctaText',this.value)">
+                </div>
+                <div class="form-group" style="min-width:120px;">
+                  <label>CTA type</label>
+                  <select onchange="updateResult(${i},'ctaType',this.value)">${ctaOpts}</select>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateResult(ri, field, val) {
+      draft.results[ri][field] = val;
+    }
+
+    // ── Flags tab ─────────────────────────────────
+
+    function renderFlags() {
+      const flags = draft.availableFlags || [];
+      document.getElementById('flags-list').innerHTML = flags.map((f, i) => `
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <span class="tag" style="flex:1;">${escHtml(f)}</span>
+          <button class="icon-btn danger" onclick="deleteFlag(${i})">×</button>
+        </div>
+      `).join('');
+    }
+
+    function addFlag() {
+      const input = document.getElementById('new-flag-input');
+      const val = input.value.trim();
+      if (!val) return;
+      if (!draft.availableFlags) draft.availableFlags = [];
+      if (!draft.availableFlags.includes(val)) {
+        draft.availableFlags.push(val);
+        renderFlags();
+      }
+      input.value = '';
+    }
+
+    function deleteFlag(idx) {
+      const flag = draft.availableFlags[idx];
+      // Remove from all options too
+      for (const q of draft.questions) {
+        for (const opt of q.options) {
+          opt.flags = opt.flags.filter(f => f !== flag);
+        }
+      }
+      draft.availableFlags.splice(idx, 1);
+      renderFlags();
+      renderQuestions();
+    }
+
+    // ── Lead Capture tab ──────────────────────────
+
+    function renderLeadCapture() {
+      const lc = draft.leadCapture || { fields: ['name','email'], issueTypeLabel: '', issueTypeOptions: [] };
+      const fields = lc.fields || [];
+
+      // Toggle states
+      setToggle('toggle-phone',    fields.includes('phone'));
+      setToggle('toggle-deadline', fields.includes('deadline'));
+
+      document.getElementById('f-issuetype-label').value = lc.issueTypeLabel || '';
+
+      const itoList = document.getElementById('issuetype-list');
+      itoList.innerHTML = (lc.issueTypeOptions || []).map((o, i) => `
+        <div class="issue-type-item">
+          <span>⠿</span>
+          <input type="text" value="${escAttr(o)}" oninput="updateIssueType(${i},this.value)">
+          <button class="icon-btn danger" onclick="deleteIssueType(${i})">×</button>
+        </div>
+      `).join('');
+    }
+
+    function setToggle(id, on) {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.className = 'toggle-switch' + (on ? ' on' : '');
+    }
+
+    function toggleField(field) {
+      if (!draft.leadCapture) draft.leadCapture = { fields: ['name','email'], issueTypeLabel: '', issueTypeOptions: [] };
+      const fields = draft.leadCapture.fields;
+      const idx = fields.indexOf(field);
+      if (idx >= 0) fields.splice(idx, 1);
+      else fields.push(field);
+      renderLeadCapture();
+    }
+
+    function addIssueType() {
+      const input = document.getElementById('new-issuetype-input');
+      const val = input.value.trim();
+      if (!val) return;
+      if (!draft.leadCapture.issueTypeOptions) draft.leadCapture.issueTypeOptions = [];
+      draft.leadCapture.issueTypeOptions.push(val);
+      renderLeadCapture();
+      input.value = '';
+    }
+
+    function updateIssueType(idx, val) {
+      draft.leadCapture.issueTypeOptions[idx] = val;
+    }
+
+    function deleteIssueType(idx) {
+      draft.leadCapture.issueTypeOptions.splice(idx, 1);
+      renderLeadCapture();
+    }
+
+    // ── Save / Delete / Create ────────────────────
+
+    function saveCurrentQuiz() {
+      if (!draft) return;
+      // Sync info fields into draft
+      draft.title        = document.getElementById('f-title').value.trim()    || draft.title;
+      draft.subtitle     = document.getElementById('f-subtitle').value.trim();
+      draft.id           = document.getElementById('f-slug').value.trim()     || draft.id;
+      draft.slug         = draft.id;
+      draft.groundingNote= document.getElementById('f-grounding').value.trim();
+      draft.leadCapture.issueTypeLabel = document.getElementById('f-issuetype-label').value.trim();
+
+      // If id changed, remove old entry
+      if (currentQuizId !== draft.id) {
+        Storage.deleteQuiz(currentQuizId);
+        currentQuizId = draft.id;
+      }
+
+      Storage.saveQuiz(draft);
+      document.getElementById('editor-title').textContent = draft.title;
+      document.getElementById('preview-link').href = `quiz.html?id=${encodeURIComponent(draft.id)}`;
+      renderSidebar();
+      showToast('Changes saved');
+    }
+
+    function deleteCurrentQuiz() {
+      if (!confirm(`Delete "${draft.title}"? This cannot be undone.`)) return;
+      Storage.deleteQuiz(currentQuizId);
+      currentQuizId = null;
+      draft = null;
+      document.getElementById('quiz-editor').classList.add('hidden');
+      document.getElementById('empty-state').classList.remove('hidden');
+      renderSidebar();
+    }
+
+    function createQuiz() {
+      const id = 'quiz-' + Date.now();
+      const newQuiz = {
+        id,
+        slug: id,
+        title: 'New Quiz',
+        subtitle: '',
+        groundingNote: '',
+        questions: [
+          {
+            id: Storage.generateId(),
+            order: 1,
+            text: '',
+            options: [
+              { id: Storage.generateId(), text: '', tier: 1, flags: [] },
+            ],
+          }
+        ],
+        results: [1,2,3,4,5].map(t => ({
+          tier: t,
+          label: `Result Tier ${t}`,
+          forPeopleWith: '',
+          message: '',
+          ctaText: '',
+          ctaType: t <= 2 ? 'download' : t === 3 ? 'schedule' : 'contact',
+        })),
+        availableFlags: [],
+        leadCapture: { fields: ['name','email','phone','deadline'], issueTypeLabel: '', issueTypeOptions: [] },
+      };
+      Storage.saveQuiz(newQuiz);
+      selectQuiz(id);
+      showTab('info');
+      document.getElementById('f-title').focus();
+    }
+
+    // ── Toast ─────────────────────────────────────
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2200);
+    }
+
+    // ── Utils ─────────────────────────────────────
+
+    function escHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function escAttr(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    init();
+  </script>
+</body>
+</html>
