@@ -172,6 +172,19 @@ textarea { resize:vertical; min-height:80px; }
     .result-cta h3 { margin-bottom: 0.5rem; }
     .result-cta p  { font-size: 0.875rem; margin-bottom: 1rem; }
 
+    /* Score breakdown */
+    .score-breakdown { background:white; border:1px solid var(--border); border-radius:10px; padding:1.25rem; margin-bottom:1.25rem; }
+    .score-breakdown-title { font-size:0.75rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.875rem; }
+    .score-bar-row { display:flex; align-items:center; gap:0.75rem; margin-bottom:0.55rem; }
+    .score-bar-row:last-child { margin-bottom:0; }
+    .score-bar-label { font-size:0.82rem; color:var(--text-2); width:180px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .score-bar-row.winner .score-bar-label { font-weight:600; color:var(--text); }
+    .score-bar-track { flex:1; height:8px; background:var(--border); border-radius:4px; overflow:hidden; }
+    .score-bar-fill { height:100%; background:var(--blue-light); border-radius:4px; transition:width 0.5s ease; }
+    .score-bar-row.winner .score-bar-fill { background:var(--navy); }
+    .score-bar-pts { font-size:0.82rem; font-weight:600; color:var(--text-2); width:44px; text-align:right; flex-shrink:0; }
+    .score-bar-row.winner .score-bar-pts { color:var(--text); }
+
     /* Lead capture */
     .lead-capture {
       margin-top: 1.5rem;
@@ -240,6 +253,11 @@ textarea { resize:vertical; min-height:80px; }
         <div class="result-message" id="result-message"></div>
       </div>
 
+      <div class="score-breakdown hidden" id="score-breakdown">
+        <div class="score-breakdown-title">Score breakdown</div>
+        <div id="score-breakdown-bars"></div>
+      </div>
+
       <div class="result-cta" id="result-cta">
         <h3>Recommended next step</h3>
         <p id="cta-description"></p>
@@ -306,7 +324,22 @@ const Storage={
   saveResponse(r){const rs=this.getResponses();rs.unshift(r);localStorage.setItem(KEYS.responses,JSON.stringify(rs));},
   deleteResponse(id){localStorage.setItem(KEYS.responses,JSON.stringify(this.getResponses().filter(r=>r.id!==id)));},
   clearResponses(){localStorage.setItem(KEYS.responses,'[]');},
-  scoreAnswers(quiz,opts){let max=1;const flags=[];for(const o of opts){if(o.tier>max)max=o.tier;for(const f of o.flags)if(!flags.includes(f))flags.push(f);}return{tier:max,result:quiz.results.find(r=>r.tier===max),flags:flags.slice(0,3)};},
+  scoreAnswers(quiz,opts){
+    const mode=quiz.scoringMode||'highest-tier';
+    if(mode==='point-accumulation'){
+      const totals={};
+      for(const r of quiz.results)totals[r.tier]=0;
+      for(const o of opts){const pts=o.points||{};for(const[t,p]of Object.entries(pts)){if(totals[Number(t)]!==undefined)totals[Number(t)]+=Number(p)||0;}}
+      let winnerTier=quiz.results[0]?.tier;let maxPts=-1;
+      for(const[t,p]of Object.entries(totals)){if(p>maxPts){maxPts=p;winnerTier=Number(t);}}
+      return{tier:winnerTier,result:quiz.results.find(r=>r.tier===winnerTier),scores:totals,mode};
+    }else{
+      const minTier=quiz.results.reduce((m,r)=>Math.min(m,r.tier),Infinity);
+      let max=isFinite(minTier)?minTier:1;
+      for(const o of opts)if(o.tier>max)max=o.tier;
+      return{tier:max,result:quiz.results.find(r=>r.tier===max),scores:null,mode};
+    }
+  },
   generateId(){return'id_'+Math.random().toString(36).slice(2,10)+'_'+Date.now().toString(36);}
 };
   </script>
@@ -415,7 +448,7 @@ const Storage={
     // ── Result ──────────────────────────────────
 
     function showResult() {
-      const { tier, result, flags } = Storage.scoreAnswers(quiz, answers);
+      const { tier, result, scores, mode } = Storage.scoreAnswers(quiz, answers);
 
       // Progress bar to 100%
       document.getElementById('progress-fill').style.width = '100%';
@@ -427,6 +460,23 @@ const Storage={
 
       const card = document.getElementById('result-card');
       card.className = `result-card card tier-${tier}`;
+
+      // Score breakdown (accumulation mode)
+      if (mode === 'point-accumulation' && scores) {
+        const breakdownEl = document.getElementById('score-breakdown');
+        breakdownEl.classList.remove('hidden');
+        const maxScore = Math.max(...Object.values(scores), 1);
+        document.getElementById('score-breakdown-bars').innerHTML = quiz.results.map(r => {
+          const pts = scores[r.tier] || 0;
+          const pct = Math.round((pts / maxScore) * 100);
+          const isWinner = r.tier === tier;
+          return `<div class="score-bar-row${isWinner ? ' winner' : ''}">
+            <div class="score-bar-label" title="${escHtml(r.label)}">${escHtml(r.label)}</div>
+            <div class="score-bar-track"><div class="score-bar-fill" style="width:${pct}%"></div></div>
+            <div class="score-bar-pts">${pts} pt${pts !== 1 ? 's' : ''}</div>
+          </div>`;
+        }).join('');
+      }
 
       // CTA
       const ctaDescriptions = {
@@ -445,7 +495,7 @@ const Storage={
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
       // Store partial result for lead submission
-      window._quizResult = { tier, result, flags };
+      window._quizResult = { tier, result, scores };
     }
 
     function ctaClicked() {

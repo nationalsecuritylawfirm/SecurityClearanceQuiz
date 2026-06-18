@@ -255,6 +255,14 @@ textarea { resize:vertical; min-height:80px; }
       padding: 0.4rem 0.4rem;
       border-radius: 6px;
     }
+    /* ── Points grid (accumulation mode) ── */
+    .points-grid { display:flex; flex-wrap:wrap; align-items:center; gap:0.4rem 0.6rem; flex:1; }
+    .points-label { font-size:0.72rem; color:var(--text-3); font-weight:500; white-space:nowrap; }
+    .points-item { display:flex; flex-direction:column; align-items:center; gap:0.15rem; }
+    .points-tier-label { font-size:0.68rem; color:var(--text-2); white-space:nowrap; max-width:72px; overflow:hidden; text-overflow:ellipsis; text-align:center; }
+    .points-input { width:44px; padding:0.25rem 0.3rem; font-size:0.82rem; border:1px solid var(--border-md); border-radius:5px; text-align:center; font-family:inherit; }
+    .points-input:focus { outline:none; border-color:var(--blue); }
+
     /* ── Result tier editor ── */
     .result-tier-card {
       background: white;
@@ -411,6 +419,25 @@ textarea { resize:vertical; min-height:80px; }
                 <label>Grounding Note <span style="color:var(--text-3);font-weight:400">(optional)</span></label>
                 <textarea id="f-grounding" rows="4" placeholder="Optional legal/regulatory context shown at the bottom of the quiz…"></textarea>
               </div>
+              <div class="form-group">
+                <label>Scoring Mode</label>
+                <div style="display:flex;flex-direction:column;gap:0.6rem;margin-top:0.25rem;">
+                  <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;font-weight:400;">
+                    <input type="radio" name="f-scoring-mode" value="highest-tier" onchange="updateScoringMode(this.value)" style="margin-top:3px;flex-shrink:0;width:auto;">
+                    <div>
+                      <div style="font-weight:500;font-size:0.875rem;">Highest tier wins</div>
+                      <div style="font-size:0.8rem;color:var(--text-3);">Each answer maps to one result tier. The highest tier triggered across all answers is shown.</div>
+                    </div>
+                  </label>
+                  <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;font-weight:400;">
+                    <input type="radio" name="f-scoring-mode" value="point-accumulation" onchange="updateScoringMode(this.value)" style="margin-top:3px;flex-shrink:0;width:auto;">
+                    <div>
+                      <div style="font-weight:500;font-size:0.875rem;">Point accumulation</div>
+                      <div style="font-size:0.8rem;color:var(--text-3);">Each answer gives points toward result categories. The highest-scoring category wins and all scores are shown.</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -551,6 +578,8 @@ const Storage={
       document.getElementById('f-subtitle').value = draft.subtitle || '';
       document.getElementById('f-slug').value     = draft.id       || '';
       document.getElementById('f-grounding').value= draft.groundingNote || '';
+      const mode = draft.scoringMode || 'highest-tier';
+      document.querySelectorAll('input[name="f-scoring-mode"]').forEach(r => { r.checked = r.value === mode; });
 
       // Questions tab
       renderQuestions();
@@ -596,10 +625,39 @@ const Storage={
     }
 
     function buildOptionRow(opt, qi, oi) {
+      const isAccum = (draft.scoringMode === 'point-accumulation');
+      const deleteBtn = `<button class="icon-btn danger" title="Delete option" onclick="deleteOption(${qi},${oi})">×</button>`;
+
+      if (isAccum) {
+        const pointsHtml = `<div class="points-grid">
+          <span class="points-label">Points:</span>
+          ${draft.results.map(r => {
+            const pts = (opt.points && opt.points[r.tier] !== undefined) ? opt.points[r.tier] : 0;
+            const short = (r.label||'Tier '+r.tier).length > 14
+              ? (r.label||'Tier '+r.tier).slice(0,13)+'…'
+              : (r.label||'Tier '+r.tier);
+            return `<label class="points-item" title="${escAttr(r.label||'Tier '+r.tier)}">
+              <span class="points-tier-label">${escHtml(short)}</span>
+              <input type="number" class="points-input" value="${pts}" min="0"
+                     onchange="updateOptionPoints(${qi},${oi},${r.tier},this.value)">
+            </label>`;
+          }).join('')}
+        </div>`;
+        return `
+          <div class="option-row" id="opt-${qi}-${oi}" style="flex-wrap:wrap;align-items:flex-start;">
+            <span class="option-drag" style="padding-top:0.45rem;">⠿</span>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:0.35rem;">
+              <textarea class="option-text" rows="1"
+                        oninput="updateOptionText(${qi},${oi},this.value)">${escHtml(opt.text)}</textarea>
+              ${pointsHtml}
+            </div>
+            ${deleteBtn}
+          </div>`;
+      }
+
       const tierOptions = draft.results.map(r =>
         `<option value="${r.tier}" ${opt.tier===r.tier?'selected':''}>${escHtml(r.label || 'Tier ' + r.tier)}</option>`
       ).join('');
-
       return `
         <div class="option-row" id="opt-${qi}-${oi}">
           <span class="option-drag">⠿</span>
@@ -608,9 +666,8 @@ const Storage={
           <select class="option-tier" title="Result tier" onchange="updateOptionTier(${qi},${oi},this.value)">
             ${tierOptions}
           </select>
-          <button class="icon-btn danger" title="Delete option" onclick="deleteOption(${qi},${oi})">×</button>
-        </div>
-      `;
+          ${deleteBtn}
+        </div>`;
     }
 
     // ── Question mutations ────────────────────────
@@ -651,6 +708,21 @@ const Storage={
       }, 50);
     }
 
+    function updateScoringMode(val) {
+      draft.scoringMode = val;
+      if (val === 'point-accumulation') {
+        for (const q of draft.questions) {
+          for (const opt of q.options) {
+            if (!opt.points) {
+              opt.points = {};
+              for (const r of draft.results) opt.points[r.tier] = 0;
+            }
+          }
+        }
+      }
+      renderQuestions();
+    }
+
     // ── Option mutations ──────────────────────────
 
     function updateOptionText(qi, oi, val) {
@@ -661,8 +733,18 @@ const Storage={
       draft.questions[qi].options[oi].tier = parseInt(val);
     }
 
+    function updateOptionPoints(qi, oi, tier, val) {
+      if (!draft.questions[qi].options[oi].points) draft.questions[qi].options[oi].points = {};
+      draft.questions[qi].options[oi].points[tier] = parseInt(val) || 0;
+    }
+
     function addOption(qi) {
-      draft.questions[qi].options.push({ id: Storage.generateId(), text: '', tier: 1, flags: [] });
+      const newOpt = { id: Storage.generateId(), text: '', tier: draft.results[0]?.tier || 1, flags: [] };
+      if (draft.scoringMode === 'point-accumulation') {
+        newOpt.points = {};
+        for (const r of draft.results) newOpt.points[r.tier] = 0;
+      }
+      draft.questions[qi].options.push(newOpt);
       // Re-render just that question's options
       const q = draft.questions[qi];
       document.getElementById(`opts-${qi}`).innerHTML =
@@ -697,7 +779,11 @@ const Storage={
               <input type="text" value="${escAttr(r.label)}" placeholder="Result label…"
                      style="flex:1;border:none;background:transparent;font-weight:600;font-size:0.9rem;"
                      oninput="updateResult(${i},'label',this.value)">
-              ${canDelete ? `<button class="icon-btn danger" title="Delete tier" onclick="deleteResultTier(${i})">×</button>` : ''}
+              <div style="display:flex;gap:0.25rem;flex-shrink:0;">
+                <button class="icon-btn" title="Move up"   onclick="moveResultTier(${i},-1)" ${i===0?'disabled':''}>↑</button>
+                <button class="icon-btn" title="Move down" onclick="moveResultTier(${i}, 1)" ${i===draft.results.length-1?'disabled':''}>↓</button>
+                ${canDelete ? `<button class="icon-btn danger" title="Delete tier" onclick="deleteResultTier(${i})">×</button>` : ''}
+              </div>
             </div>
             <div class="result-tier-body">
               <div class="form-group">
@@ -730,6 +816,14 @@ const Storage={
       draft.results[ri][field] = val;
       // Refresh question tier dropdowns live when a label changes
       if (field === 'label') renderQuestions();
+    }
+
+    function moveResultTier(idx, dir) {
+      const ni = idx + dir;
+      if (ni < 0 || ni >= draft.results.length) return;
+      [draft.results[idx], draft.results[ni]] = [draft.results[ni], draft.results[idx]];
+      renderResults();
+      renderQuestions();
     }
 
     function addResultTier() {
@@ -822,6 +916,8 @@ const Storage={
       draft.id           = document.getElementById('f-slug').value.trim()     || draft.id;
       draft.slug         = draft.id;
       draft.groundingNote= document.getElementById('f-grounding').value.trim();
+      const modeRadio = document.querySelector('input[name="f-scoring-mode"]:checked');
+      if (modeRadio) draft.scoringMode = modeRadio.value;
       draft.leadCapture.issueTypeLabel = document.getElementById('f-issuetype-label').value.trim();
 
       // If id changed, remove old entry
@@ -865,13 +961,14 @@ const Storage={
             ],
           }
         ],
-        results: [1,2,3,4,5].map(t => ({
+        scoringMode: 'highest-tier',
+        results: [1,2,3].map(t => ({
           tier: t,
-          label: `Result Tier ${t}`,
+          label: `Result ${t}`,
           forPeopleWith: '',
           message: '',
           ctaText: '',
-          ctaType: t <= 2 ? 'download' : t === 3 ? 'schedule' : 'contact',
+          ctaType: t === 1 ? 'download' : t === 2 ? 'schedule' : 'contact',
         })),
         availableFlags: [],
         leadCapture: { fields: ['name','email','phone','deadline'], issueTypeLabel: '', issueTypeOptions: [] },
