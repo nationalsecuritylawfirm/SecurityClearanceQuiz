@@ -248,68 +248,13 @@ textarea { resize:vertical; min-height:80px; }
     }
     .option-text:focus { outline: none; border-color: var(--blue); }
     .option-tier {
-      width: 70px;
+      min-width: 140px;
+      max-width: 200px;
       flex-shrink: 0;
       font-size: 0.8rem;
       padding: 0.4rem 0.4rem;
       border-radius: 6px;
     }
-    .flags-btn {
-      flex-shrink: 0;
-      position: relative;
-    }
-    .flags-pill {
-      padding: 0.35rem 0.6rem;
-      font-size: 0.78rem;
-      border: 1px solid var(--border-md);
-      border-radius: 6px;
-      background: white;
-      cursor: pointer;
-      white-space: nowrap;
-      color: var(--text-2);
-      transition: border-color 0.12s;
-    }
-    .flags-pill:hover { border-color: var(--blue); color: var(--blue); }
-    .flags-pill.has-flags { border-color: var(--blue); color: var(--blue); background: #eff6ff; }
-    .flags-dropdown {
-      position: absolute;
-      right: 0;
-      top: calc(100% + 4px);
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-      z-index: 200;
-      min-width: 220px;
-      max-height: 240px;
-      overflow-y: auto;
-      padding: 0.5rem;
-    }
-    .flag-option {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.35rem 0.4rem;
-      border-radius: 5px;
-      font-size: 0.82rem;
-      cursor: pointer;
-    }
-    .flag-option:hover { background: var(--bg); }
-    .flag-option input { cursor: pointer; }
-    .add-flag-row {
-      display: flex;
-      gap: 0.4rem;
-      padding: 0.4rem;
-      border-top: 1px solid var(--border);
-      margin-top: 0.25rem;
-    }
-    .add-flag-row input {
-      flex: 1;
-      font-size: 0.8rem;
-      padding: 0.3rem 0.5rem;
-      border-radius: 5px;
-    }
-
     /* ── Result tier editor ── */
     .result-tier-card {
       background: white;
@@ -376,9 +321,6 @@ textarea { resize:vertical; min-height:80px; }
     .issue-type-item input { flex: 1; border: none; font-size: 0.875rem; font-family: inherit; }
     .issue-type-item input:focus { outline: none; }
 
-    /* Overlay to close dropdowns */
-    #overlay { position: fixed; inset: 0; z-index: 100; display: none; }
-
     /* Saved toast */
     #toast {
       position: fixed;
@@ -399,7 +341,6 @@ textarea { resize:vertical; min-height:80px; }
   </style>
 </head>
 <body>
-  <div id="overlay" onclick="closeAllDropdowns()"></div>
   <div id="toast">Changes saved</div>
 
   <nav class="navbar">
@@ -444,9 +385,8 @@ textarea { resize:vertical; min-height:80px; }
 
         <div class="tab-nav">
           <button class="tab-btn active" onclick="showTab('info')">Quiz Info</button>
-          <button class="tab-btn" onclick="showTab('questions')">Questions</button>
           <button class="tab-btn" onclick="showTab('results')">Results</button>
-          <button class="tab-btn" onclick="showTab('flags')">Issue Flags</button>
+          <button class="tab-btn" onclick="showTab('questions')">Questions</button>
           <button class="tab-btn" onclick="showTab('lead')">Lead Capture</button>
         </div>
 
@@ -474,26 +414,16 @@ textarea { resize:vertical; min-height:80px; }
             </div>
           </div>
 
+          <!-- Tab: Results -->
+          <div class="tab-content" id="tab-results">
+            <p class="text-muted" style="margin-bottom:1.25rem;">Define the result tiers for this quiz. Answer options map to tiers; the highest tier triggered is shown. Define these before adding questions so you can map options to them.</p>
+            <div id="results-list"></div>
+          </div>
+
           <!-- Tab: Questions -->
           <div class="tab-content" id="tab-questions">
             <div id="questions-list"></div>
             <button class="btn btn-outline" onclick="addQuestion()" style="margin-top:0.5rem;">+ Add Question</button>
-          </div>
-
-          <!-- Tab: Results -->
-          <div class="tab-content" id="tab-results">
-            <p class="text-muted" style="margin-bottom:1.25rem;">Each quiz has 5 result tiers. Answers map to tiers 1–5; the highest tier triggered is shown. Tier 1 only shows if no higher tier was flagged.</p>
-            <div id="results-list"></div>
-          </div>
-
-          <!-- Tab: Issue Flags -->
-          <div class="tab-content" id="tab-flags">
-            <p class="text-muted" style="margin-bottom:1rem;">The flag library for this quiz. Flags are attached to answer options in the Questions tab. The top 3 triggered flags show on the result screen.</p>
-            <div id="flags-list" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.75rem;"></div>
-            <div style="display:flex;gap:0.5rem;max-width:400px;">
-              <input type="text" id="new-flag-input" placeholder="Add a new flag…" onkeydown="if(event.key==='Enter')addFlag()">
-              <button class="btn btn-outline" onclick="addFlag()">Add</button>
-            </div>
           </div>
 
           <!-- Tab: Lead Capture -->
@@ -602,7 +532,7 @@ const Storage={
 
     function showTab(tab) {
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        const tabs = ['info','questions','results','flags','lead'];
+        const tabs = ['info','results','questions','lead'];
         b.classList.toggle('active', tabs[i] === tab);
       });
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -627,9 +557,6 @@ const Storage={
 
       // Results tab
       renderResults();
-
-      // Flags tab
-      renderFlags();
 
       // Lead capture tab
       renderLeadCapture();
@@ -669,10 +596,8 @@ const Storage={
     }
 
     function buildOptionRow(opt, qi, oi) {
-      const flagCount = opt.flags.length;
-      const hasFlagsClass = flagCount > 0 ? ' has-flags' : '';
-      const tierOptions = [1,2,3,4,5].map(t =>
-        `<option value="${t}" ${opt.tier===t?'selected':''}>${t}</option>`
+      const tierOptions = draft.results.map(r =>
+        `<option value="${r.tier}" ${opt.tier===r.tier?'selected':''}>${escHtml(r.label || 'Tier ' + r.tier)}</option>`
       ).join('');
 
       return `
@@ -683,34 +608,7 @@ const Storage={
           <select class="option-tier" title="Result tier" onchange="updateOptionTier(${qi},${oi},this.value)">
             ${tierOptions}
           </select>
-          <div class="flags-btn" id="flagsbtn-${qi}-${oi}">
-            <button class="flags-pill${hasFlagsClass}"
-                    onclick="toggleFlagsDropdown(event,${qi},${oi})">
-              🏷 ${flagCount > 0 ? flagCount + ' flag' + (flagCount>1?'s':'') : 'Flags'}
-            </button>
-            <div class="flags-dropdown hidden" id="flagsdrop-${qi}-${oi}">
-              ${buildFlagsDropdown(opt, qi, oi)}
-            </div>
-          </div>
           <button class="icon-btn danger" title="Delete option" onclick="deleteOption(${qi},${oi})">×</button>
-        </div>
-      `;
-    }
-
-    function buildFlagsDropdown(opt, qi, oi) {
-      const flags = draft.availableFlags || [];
-      const checkboxes = flags.map(f => `
-        <label class="flag-option">
-          <input type="checkbox" ${opt.flags.includes(f)?'checked':''}
-                 onchange="toggleOptionFlag(${qi},${oi},'${escAttr(f)}',this.checked)">
-          ${escHtml(f)}
-        </label>
-      `).join('');
-      return checkboxes + `
-        <div class="add-flag-row">
-          <input type="text" placeholder="New flag…" id="newfl-${qi}-${oi}"
-                 onkeydown="if(event.key==='Enter')addFlagFromOption(${qi},${oi})">
-          <button class="btn btn-outline btn-sm" onclick="addFlagFromOption(${qi},${oi})">Add</button>
         </div>
       `;
     }
@@ -779,75 +677,27 @@ const Storage={
         q.options.map((opt, oi) => buildOptionRow(opt, qi, oi)).join('');
     }
 
-    // ── Flags dropdown ────────────────────────────
-
-    function toggleFlagsDropdown(e, qi, oi) {
-      e.stopPropagation();
-      const drop = document.getElementById(`flagsdrop-${qi}-${oi}`);
-      const wasOpen = !drop.classList.contains('hidden');
-      closeAllDropdowns();
-      if (!wasOpen) {
-        drop.classList.remove('hidden');
-        document.getElementById('overlay').style.display = 'block';
-      }
-    }
-
-    function closeAllDropdowns() {
-      document.querySelectorAll('.flags-dropdown').forEach(d => d.classList.add('hidden'));
-      document.getElementById('overlay').style.display = 'none';
-    }
-
-    function toggleOptionFlag(qi, oi, flag, checked) {
-      const flags = draft.questions[qi].options[oi].flags;
-      if (checked && !flags.includes(flag)) flags.push(flag);
-      if (!checked) {
-        const idx = flags.indexOf(flag);
-        if (idx >= 0) flags.splice(idx, 1);
-      }
-      // Update pill label without closing dropdown
-      const btn = document.querySelector(`#flagsbtn-${qi}-${oi} .flags-pill`);
-      const count = flags.length;
-      if (btn) {
-        btn.textContent = count > 0 ? `🏷 ${count} flag${count>1?'s':''}` : '🏷 Flags';
-        btn.className = 'flags-pill' + (count > 0 ? ' has-flags' : '');
-      }
-    }
-
-    function addFlagFromOption(qi, oi) {
-      const input = document.getElementById(`newfl-${qi}-${oi}`);
-      const val = input.value.trim();
-      if (!val) return;
-      if (!draft.availableFlags) draft.availableFlags = [];
-      if (!draft.availableFlags.includes(val)) draft.availableFlags.push(val);
-      // Check it automatically on this option
-      if (!draft.questions[qi].options[oi].flags.includes(val))
-        draft.questions[qi].options[oi].flags.push(val);
-      // Rebuild this dropdown
-      document.getElementById(`flagsdrop-${qi}-${oi}`).innerHTML =
-        buildFlagsDropdown(draft.questions[qi].options[oi], qi, oi);
-      renderFlags();
-    }
-
     // ── Results ───────────────────────────────────
 
     function renderResults() {
-      const TIER_COLORS = ['','#059669','#2563eb','#d97706','#ea580c','#dc2626'];
-      const TIER_LABELS = ['','Tier 1','Tier 2','Tier 3','Tier 4','Tier 5'];
-      const CTA_TYPES   = ['download','schedule','contact','request'];
-
+      const CTA_TYPES = ['download','schedule','contact','request'];
       const list = document.getElementById('results-list');
+      const canDelete = draft.results.length > 1;
+
       list.innerHTML = draft.results.map((r, i) => {
         const t = r.tier;
+        const tierClass = t >= 1 && t <= 5 ? `tier-${t}` : 'tier-1';
         const ctaOpts = CTA_TYPES.map(c =>
           `<option value="${c}" ${r.ctaType===c?'selected':''}>${c}</option>`
         ).join('');
         return `
           <div class="result-tier-card">
             <div class="result-tier-header">
-              <span class="tier-badge tier-${t}">${TIER_LABELS[t]}</span>
+              <span class="tier-badge ${tierClass}">Tier ${t}</span>
               <input type="text" value="${escAttr(r.label)}" placeholder="Result label…"
                      style="flex:1;border:none;background:transparent;font-weight:600;font-size:0.9rem;"
                      oninput="updateResult(${i},'label',this.value)">
+              ${canDelete ? `<button class="icon-btn danger" title="Delete tier" onclick="deleteResultTier(${i})">×</button>` : ''}
             </div>
             <div class="result-tier-body">
               <div class="form-group">
@@ -873,47 +723,36 @@ const Storage={
             </div>
           </div>
         `;
-      }).join('');
+      }).join('') + `<button class="btn btn-outline" onclick="addResultTier()" style="margin-top:0.25rem;">+ Add Tier</button>`;
     }
 
     function updateResult(ri, field, val) {
       draft.results[ri][field] = val;
+      // Refresh question tier dropdowns live when a label changes
+      if (field === 'label') renderQuestions();
     }
 
-    // ── Flags tab ─────────────────────────────────
-
-    function renderFlags() {
-      const flags = draft.availableFlags || [];
-      document.getElementById('flags-list').innerHTML = flags.map((f, i) => `
-        <div style="display:flex;align-items:center;gap:0.5rem;">
-          <span class="tag" style="flex:1;">${escHtml(f)}</span>
-          <button class="icon-btn danger" onclick="deleteFlag(${i})">×</button>
-        </div>
-      `).join('');
+    function addResultTier() {
+      const maxTier = draft.results.reduce((m, r) => Math.max(m, r.tier), 0);
+      draft.results.push({
+        tier: maxTier + 1,
+        label: '',
+        forPeopleWith: '',
+        message: '',
+        ctaText: '',
+        ctaType: 'contact',
+      });
+      renderResults();
+      renderQuestions();
     }
 
-    function addFlag() {
-      const input = document.getElementById('new-flag-input');
-      const val = input.value.trim();
-      if (!val) return;
-      if (!draft.availableFlags) draft.availableFlags = [];
-      if (!draft.availableFlags.includes(val)) {
-        draft.availableFlags.push(val);
-        renderFlags();
-      }
-      input.value = '';
-    }
-
-    function deleteFlag(idx) {
-      const flag = draft.availableFlags[idx];
-      // Remove from all options too
-      for (const q of draft.questions) {
-        for (const opt of q.options) {
-          opt.flags = opt.flags.filter(f => f !== flag);
-        }
-      }
-      draft.availableFlags.splice(idx, 1);
-      renderFlags();
+    function deleteResultTier(idx) {
+      const tier = draft.results[idx].tier;
+      const count = draft.questions.reduce((n, q) =>
+        n + q.options.filter(o => o.tier === tier).length, 0);
+      if (count > 0 && !confirm(`${count} answer option(s) use this tier. Delete anyway?`)) return;
+      draft.results.splice(idx, 1);
+      renderResults();
       renderQuestions();
     }
 

@@ -162,10 +162,6 @@ textarea { resize:vertical; min-height:80px; }
       margin-bottom: 0.75rem;
     }
     .result-message { font-size: 0.9rem; line-height: 1.65; }
-    .result-flags-wrap { margin-top: 1rem; }
-    .result-flags-label { font-size: 0.78rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.4rem; }
-    .result-flags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-
     .result-cta {
       margin-top: 1.5rem;
       padding: 1.25rem;
@@ -242,10 +238,6 @@ textarea { resize:vertical; min-height:80px; }
       <div class="result-card card" id="result-card">
         <div class="result-label" id="result-label"></div>
         <div class="result-message" id="result-message"></div>
-        <div class="result-flags-wrap" id="result-flags-wrap" style="display:none">
-          <div class="result-flags-label">Issues flagged</div>
-          <div class="result-flags" id="result-flags"></div>
-        </div>
       </div>
 
       <div class="result-cta" id="result-cta">
@@ -435,13 +427,6 @@ const Storage={
 
       const card = document.getElementById('result-card');
       card.className = `result-card card tier-${tier}`;
-
-      if (flags.length) {
-        document.getElementById('result-flags-wrap').style.display = '';
-        document.getElementById('result-flags').innerHTML = flags.map(f =>
-          `<span class="tag">${escHtml(f)}</span>`
-        ).join('');
-      }
 
       // CTA
       const ctaDescriptions = {
