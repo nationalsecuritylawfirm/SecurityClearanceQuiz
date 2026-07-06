@@ -185,6 +185,13 @@ textarea { resize:vertical; min-height:80px; }
     .score-bar-pts { font-size:0.82rem; font-weight:600; color:var(--text-2); width:44px; text-align:right; flex-shrink:0; }
     .score-bar-row.winner .score-bar-pts { color:var(--text); }
 
+    /* Result tags */
+    .result-tags { margin-bottom:1.25rem; }
+    .result-tag-card { background:white; border:1px solid var(--border); border-radius:10px; padding:1.25rem; margin-bottom:0.75rem; }
+    .result-tag-card:last-child { margin-bottom:0; }
+    .result-tag-label { font-size:0.75rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.5rem; }
+    .result-tag-message { font-size:0.875rem; color:var(--text-2); line-height:1.65; }
+
     /* Lead capture */
     .lead-capture {
       margin-top: 1.5rem;
@@ -253,6 +260,8 @@ textarea { resize:vertical; min-height:80px; }
         <div class="result-message" id="result-message"></div>
       </div>
 
+      <div class="result-tags hidden" id="result-tags"></div>
+
       <div class="score-breakdown hidden" id="score-breakdown">
         <div class="score-breakdown-title">Score breakdown</div>
         <div id="score-breakdown-bars"></div>
@@ -290,6 +299,7 @@ textarea { resize:vertical; min-height:80px; }
               <label class="radio-option"><input type="radio" name="deadline" value="not sure"> Not sure</label>
             </div>
           </div>
+          <div id="lf-custom-fields"></div>
           <div class="form-group mt-3 hidden" id="lf-issuetype-wrap">
             <label for="lf-issuetype" id="lf-issuetype-label">What type of issue?</label>
             <select id="lf-issuetype"></select>
@@ -332,12 +342,15 @@ const Storage={
       for(const o of opts){const pts=o.points||{};for(const[t,p]of Object.entries(pts)){if(totals[Number(t)]!==undefined)totals[Number(t)]+=Number(p)||0;}}
       let winnerTier=quiz.results[0]?.tier;let maxPts=-1;
       for(const[t,p]of Object.entries(totals)){if(p>maxPts){maxPts=p;winnerTier=Number(t);}}
-      return{tier:winnerTier,result:quiz.results.find(r=>r.tier===winnerTier),scores:totals,mode};
+      return{tier:winnerTier,result:quiz.results.find(r=>r.tier===winnerTier),scores:totals,mode,triggeredTags:[]};
     }else{
       const minTier=quiz.results.reduce((m,r)=>Math.min(m,r.tier),Infinity);
       let max=isFinite(minTier)?minTier:1;
       for(const o of opts)if(o.tier>max)max=o.tier;
-      return{tier:max,result:quiz.results.find(r=>r.tier===max),scores:null,mode};
+      const winResult=quiz.results.find(r=>r.tier===max);
+      const triggeredTags=[];const seenTagIds=new Set();
+      for(const o of opts){if(o.tier===max&&o.tag&&!seenTagIds.has(o.tag)){const tagDef=winResult&&winResult.tags&&winResult.tags.find(t=>t.id===o.tag);if(tagDef){triggeredTags.push(tagDef);seenTagIds.add(o.tag);}}}
+      return{tier:max,result:winResult,scores:null,mode,triggeredTags};
     }
   },
   generateId(){return'id_'+Math.random().toString(36).slice(2,10)+'_'+Date.now().toString(36);}
@@ -387,19 +400,50 @@ const Storage={
       if (!fields.includes('phone'))    document.getElementById('lf-phone-wrap').style.display = 'none';
       if (!fields.includes('deadline')) document.getElementById('lf-deadline-wrap').style.display = 'none';
 
+      // Custom fields
+      const customFields = lc.customFields || [];
+      document.getElementById('lf-custom-fields').innerHTML = customFields.map((f, i) => `
+        <div class="form-group mt-3">
+          <label for="lf-custom-${i}">${escHtml(f.label)}${f.required
+            ? ' *'
+            : ' <span style="color:var(--text-3);font-weight:400">(optional)</span>'}</label>
+          ${f.type === 'textarea'
+            ? `<textarea id="lf-custom-${i}" ${f.required ? 'required' : ''} placeholder="${escHtml(f.placeholder || '')}" rows="3"></textarea>`
+            : `<input type="${escHtml(f.type || 'text')}" id="lf-custom-${i}" ${f.required ? 'required' : ''} placeholder="${escHtml(f.placeholder || '')}">`
+          }
+        </div>
+      `).join('');
+
       renderQuestion();
+    }
+
+    // ── Branching ───────────────────────────────
+
+    function isQuestionVisible(qi) {
+      const q = quiz.questions[qi];
+      if (!q || !q.showIf) return true;
+      const { questionIndex, optionId } = q.showIf;
+      const ans = answers[questionIndex];
+      return !!(ans && ans.id === optionId);
+    }
+
+    function visibleQuestionIndices() {
+      return quiz.questions.map((_, qi) => qi).filter(qi => isQuestionVisible(qi));
     }
 
     // ── Question rendering ──────────────────────
 
     function renderQuestion() {
       const q = quiz.questions[currentQ];
-      const total = quiz.questions.length;
+      const visible = visibleQuestionIndices();
+      const visPos = visible.indexOf(currentQ) + 1;
+      const visTotal = visible.length;
+      const isLast = visible[visible.length - 1] === currentQ;
 
-      document.getElementById('step-label').textContent = `Question ${currentQ + 1} of ${total}`;
+      document.getElementById('step-label').textContent = `Question ${visPos} of ${visTotal}`;
       document.getElementById('question-text').textContent = q.text;
-      document.getElementById('progress-fill').style.width = `${(currentQ / total) * 100}%`;
-      document.getElementById('btn-back').disabled = currentQ === 0;
+      document.getElementById('progress-fill').style.width = `${((visPos - 1) / visTotal) * 100}%`;
+      document.getElementById('btn-back').disabled = visPos === 1;
 
       const selected = answers[currentQ];
       const list = document.getElementById('options-list');
@@ -411,8 +455,7 @@ const Storage={
       `).join('');
 
       document.getElementById('btn-next').disabled = !selected;
-      document.getElementById('btn-next').textContent =
-        currentQ === total - 1 ? 'See My Result →' : 'Next →';
+      document.getElementById('btn-next').textContent = isLast ? 'See My Result →' : 'Next →';
 
       // Re-trigger animation
       const wrap = document.getElementById('question-wrap');
@@ -423,6 +466,10 @@ const Storage={
 
     function selectOption(opt) {
       answers[currentQ] = opt;
+      // Clear answers for questions now hidden by this selection
+      for (let i = currentQ + 1; i < quiz.questions.length; i++) {
+        if (!isQuestionVisible(i)) answers[i] = undefined;
+      }
       document.querySelectorAll('.option-btn').forEach(btn => btn.classList.remove('selected'));
       event.currentTarget.classList.add('selected');
       document.getElementById('btn-next').disabled = false;
@@ -430,8 +477,10 @@ const Storage={
 
     function goNext() {
       if (!answers[currentQ]) return;
-      if (currentQ < quiz.questions.length - 1) {
-        currentQ++;
+      const visible = visibleQuestionIndices();
+      const idx = visible.indexOf(currentQ);
+      if (idx < visible.length - 1) {
+        currentQ = visible[idx + 1];
         renderQuestion();
       } else {
         showResult();
@@ -439,8 +488,10 @@ const Storage={
     }
 
     function goBack() {
-      if (currentQ > 0) {
-        currentQ--;
+      const visible = visibleQuestionIndices();
+      const idx = visible.indexOf(currentQ);
+      if (idx > 0) {
+        currentQ = visible[idx - 1];
         renderQuestion();
       }
     }
@@ -448,7 +499,8 @@ const Storage={
     // ── Result ──────────────────────────────────
 
     function showResult() {
-      const { tier, result, scores, mode } = Storage.scoreAnswers(quiz, answers);
+      const visibleAnswers = answers.filter((ans, qi) => ans && isQuestionVisible(qi));
+      const { tier, result, scores, mode, triggeredTags } = Storage.scoreAnswers(quiz, visibleAnswers);
 
       // Progress bar to 100%
       document.getElementById('progress-fill').style.width = '100%';
@@ -460,6 +512,21 @@ const Storage={
 
       const card = document.getElementById('result-card');
       card.className = `result-card card tier-${tier}`;
+
+      // Result tags (variant messages for specific triggers)
+      const tagsEl = document.getElementById('result-tags');
+      if (triggeredTags && triggeredTags.length) {
+        tagsEl.classList.remove('hidden');
+        tagsEl.innerHTML = triggeredTags.map(tag => `
+          <div class="result-tag-card">
+            <div class="result-tag-label">${escHtml(tag.label)}</div>
+            <div class="result-tag-message">${escHtml(tag.message)}</div>
+          </div>
+        `).join('');
+      } else {
+        tagsEl.classList.add('hidden');
+        tagsEl.innerHTML = '';
+      }
 
       // Score breakdown (accumulation mode)
       if (mode === 'point-accumulation' && scores) {
@@ -510,17 +577,24 @@ const Storage={
       const { tier, result, flags } = window._quizResult || {};
       const deadline = document.querySelector('input[name="deadline"]:checked');
 
+      const customFields = (quiz.leadCapture && quiz.leadCapture.customFields) || [];
+      const customData = {};
+      customFields.forEach((f, i) => {
+        const el = document.getElementById(`lf-custom-${i}`);
+        if (el) customData[f.label] = el.value.trim();
+      });
+
       const response = {
         id: Storage.generateId(),
         quizId: quiz.id,
         quizTitle: quiz.title,
         timestamp: new Date().toISOString(),
-        answers: answers.map((opt, i) => ({
-          questionId: quiz.questions[i].id,
-          questionText: quiz.questions[i].text,
-          optionId: opt.id,
-          optionText: opt.text,
-        })),
+        answers: answers.reduce((acc, opt, qi) => {
+          if (opt && isQuestionVisible(qi)) {
+            acc.push({ questionId: quiz.questions[qi].id, questionText: quiz.questions[qi].text, optionId: opt.id, optionText: opt.text });
+          }
+          return acc;
+        }, []),
         resultTier: tier,
         resultLabel: result ? result.label : '',
         triggeredFlags: flags || [],
@@ -530,6 +604,7 @@ const Storage={
           phone: document.getElementById('lf-phone').value.trim(),
           deadline: deadline ? deadline.value : '',
           issueType: document.getElementById('lf-issuetype').value || '',
+          ...customData,
         },
       };
 

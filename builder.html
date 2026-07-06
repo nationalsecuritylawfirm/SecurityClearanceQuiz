@@ -489,6 +489,11 @@ textarea { resize:vertical; min-height:80px; }
                 <input type="text" id="new-issuetype-input" placeholder="Add option (e.g. Debt)" onkeydown="if(event.key==='Enter')addIssueType()">
                 <button class="btn btn-outline" onclick="addIssueType()">Add</button>
               </div>
+
+              <h3 style="margin:1.5rem 0 0.4rem;font-size:0.875rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em;">Custom Fields</h3>
+              <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.82rem;">Add extra fields to the lead form (e.g. URL field, notes).</p>
+              <div id="custom-fields-list" style="margin-bottom:0.75rem;"></div>
+              <button class="btn btn-outline" onclick="addCustomField()">+ Add Field</button>
             </div>
           </div>
         </div><!-- /editor-scroll -->
@@ -604,6 +609,35 @@ const Storage={
 
     function buildQuestionCard(q, qi) {
       const optionsHtml = q.options.map((opt, oi) => buildOptionRow(opt, qi, oi)).join('');
+
+      // showIf section — only offered when there are prior questions
+      const priorQs = draft.questions.slice(0, qi);
+      let showIfHtml = '';
+      if (priorQs.length) {
+        const depQi = q.showIf ? q.showIf.questionIndex : '';
+        const depOptId = q.showIf ? q.showIf.optionId : '';
+        const optSelect = (depQi !== '' && draft.questions[depQi])
+          ? `<select style="font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:5px;border:1px solid var(--border-md);"
+                     onchange="updateShowIfOpt(${qi}, this.value)">
+               ${draft.questions[depQi].options.map(o =>
+                 `<option value="${escAttr(o.id)}" ${depOptId === o.id ? 'selected' : ''}>${escHtml(o.text || '(untitled)')}</option>`
+               ).join('')}
+             </select>`
+          : '';
+        showIfHtml = `
+          <div style="padding:0.5rem 1rem 0.6rem;border-top:1px solid var(--border);display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <span style="font-size:0.78rem;color:var(--text-3);white-space:nowrap;flex-shrink:0;">Show only if:</span>
+            <select style="font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:5px;border:1px solid var(--border-md);"
+                    onchange="updateShowIfQ(${qi}, this.value)">
+              <option value="">Always show</option>
+              ${priorQs.map((pq, pqi) =>
+                `<option value="${pqi}" ${depQi === pqi ? 'selected' : ''}>${escHtml(pq.text || 'Question ' + (pqi + 1))}</option>`
+              ).join('')}
+            </select>
+            ${optSelect}
+          </div>`;
+      }
+
       return `
         <div class="question-card" id="qcard-${qi}">
           <div class="question-card-header">
@@ -620,6 +654,7 @@ const Storage={
             <div id="opts-${qi}">${optionsHtml}</div>
             <button class="btn btn-ghost btn-sm" style="margin-top:0.4rem;" onclick="addOption(${qi})">+ Add option</button>
           </div>
+          ${showIfHtml}
         </div>
       `;
     }
@@ -658,6 +693,14 @@ const Storage={
       const tierOptions = draft.results.map(r =>
         `<option value="${r.tier}" ${opt.tier===r.tier?'selected':''}>${escHtml(r.label || 'Tier ' + r.tier)}</option>`
       ).join('');
+      const selResult = draft.results.find(r => r.tier === opt.tier);
+      const availTags = (selResult && selResult.tags) || [];
+      const tagSelect = availTags.length ? `
+        <select style="min-width:120px;max-width:160px;flex-shrink:0;font-size:0.8rem;padding:0.4rem;border:1px solid var(--border-md);border-radius:6px;"
+                title="Tag (optional)" onchange="updateOptionTag(${qi},${oi},this.value)">
+          <option value="">No tag</option>
+          ${availTags.map(t => `<option value="${escAttr(t.id)}" ${opt.tag===t.id?'selected':''}>${escHtml(t.label||'(untitled)')}</option>`).join('')}
+        </select>` : '';
       return `
         <div class="option-row" id="opt-${qi}-${oi}">
           <span class="option-drag">⠿</span>
@@ -666,6 +709,7 @@ const Storage={
           <select class="option-tier" title="Result tier" onchange="updateOptionTier(${qi},${oi},this.value)">
             ${tierOptions}
           </select>
+          ${tagSelect}
           ${deleteBtn}
         </div>`;
     }
@@ -731,6 +775,10 @@ const Storage={
 
     function updateOptionTier(qi, oi, val) {
       draft.questions[qi].options[oi].tier = parseInt(val);
+      draft.questions[qi].options[oi].tag = null; // clear tag — may not exist on new tier
+      const q = draft.questions[qi];
+      document.getElementById(`opts-${qi}`).innerHTML =
+        q.options.map((opt, oi) => buildOptionRow(opt, qi, oi)).join('');
     }
 
     function updateOptionPoints(qi, oi, tier, val) {
@@ -757,6 +805,29 @@ const Storage={
       const q = draft.questions[qi];
       document.getElementById(`opts-${qi}`).innerHTML =
         q.options.map((opt, oi) => buildOptionRow(opt, qi, oi)).join('');
+    }
+
+    // ── ShowIf (branching) ────────────────────────
+
+    function updateShowIfQ(qi, val) {
+      if (!val) {
+        draft.questions[qi].showIf = null;
+      } else {
+        const qIdx = parseInt(val);
+        const firstOpt = draft.questions[qIdx] && draft.questions[qIdx].options[0];
+        draft.questions[qi].showIf = { questionIndex: qIdx, optionId: firstOpt ? firstOpt.id : '' };
+      }
+      renderQuestions();
+    }
+
+    function updateShowIfOpt(qi, optId) {
+      if (draft.questions[qi].showIf) draft.questions[qi].showIf.optionId = optId;
+    }
+
+    // ── Option tag ────────────────────────────────
+
+    function updateOptionTag(qi, oi, val) {
+      draft.questions[qi].options[oi].tag = val || null;
     }
 
     // ── Results ───────────────────────────────────
@@ -806,6 +877,29 @@ const Storage={
                   <select onchange="updateResult(${i},'ctaType',this.value)">${ctaOpts}</select>
                 </div>
               </div>
+              <div style="border-top:1px solid var(--border);padding-top:0.875rem;margin-top:0.25rem;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">
+                  <div>
+                    <label style="font-size:0.875rem;">Tag variants</label>
+                    <div class="hint" style="margin-top:0.1rem;">Show a specific message when a particular answer triggers this tier.</div>
+                  </div>
+                  <button class="btn btn-outline btn-sm" onclick="addResultTag(${i})">+ Add Tag</button>
+                </div>
+                <div id="result-tags-${i}">
+                  ${(r.tags||[]).map((tag, ti) => `
+                    <div style="display:flex;flex-direction:column;gap:0.4rem;padding:0.75rem;background:var(--bg);border-radius:7px;margin-bottom:0.4rem;">
+                      <div style="display:flex;gap:0.5rem;align-items:center;">
+                        <input type="text" value="${escAttr(tag.label)}" placeholder="Tag label (e.g. Publisher Policy)"
+                               style="flex:1;font-size:0.875rem;font-weight:500;"
+                               oninput="updateTag(${i},${ti},'label',this.value)">
+                        <button class="icon-btn danger" onclick="deleteTag(${i},${ti})">×</button>
+                      </div>
+                      <textarea rows="3" placeholder="Message shown when this tag fires…"
+                                oninput="updateTag(${i},${ti},'message',this.value)">${escHtml(tag.message||'')}</textarea>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
             </div>
           </div>
         `;
@@ -850,10 +944,52 @@ const Storage={
       renderQuestions();
     }
 
+    // ── Result tags ───────────────────────────────
+
+    function addResultTag(ri) {
+      if (!draft.results[ri].tags) draft.results[ri].tags = [];
+      draft.results[ri].tags.push({ id: 'tag-' + Storage.generateId(), label: '', message: '' });
+      renderResults();
+      renderQuestions();
+    }
+
+    function updateTag(ri, ti, field, val) {
+      draft.results[ri].tags[ti][field] = val;
+      if (field === 'label') renderQuestions(); // refresh tag dropdowns on options
+    }
+
+    function deleteTag(ri, ti) {
+      const tagId = draft.results[ri].tags[ti].id;
+      draft.results[ri].tags.splice(ti, 1);
+      // Clear any option tags referencing the deleted tag
+      for (const q of draft.questions) {
+        for (const o of q.options) { if (o.tag === tagId) o.tag = null; }
+      }
+      renderResults();
+      renderQuestions();
+    }
+
+    // ── Custom lead fields ────────────────────────
+
+    function addCustomField() {
+      if (!draft.leadCapture.customFields) draft.leadCapture.customFields = [];
+      draft.leadCapture.customFields.push({ label: '', type: 'text', placeholder: '', required: false });
+      renderLeadCapture();
+    }
+
+    function updateCustomField(idx, field, val) {
+      draft.leadCapture.customFields[idx][field] = val;
+    }
+
+    function deleteCustomField(idx) {
+      draft.leadCapture.customFields.splice(idx, 1);
+      renderLeadCapture();
+    }
+
     // ── Lead Capture tab ──────────────────────────
 
     function renderLeadCapture() {
-      const lc = draft.leadCapture || { fields: ['name','email'], issueTypeLabel: '', issueTypeOptions: [] };
+      const lc = draft.leadCapture || { fields: ['name','email'], issueTypeLabel: '', issueTypeOptions: [], customFields: [] };
       const fields = lc.fields || [];
 
       // Toggle states
@@ -868,6 +1004,30 @@ const Storage={
           <span>⠿</span>
           <input type="text" value="${escAttr(o)}" oninput="updateIssueType(${i},this.value)">
           <button class="icon-btn danger" onclick="deleteIssueType(${i})">×</button>
+        </div>
+      `).join('');
+
+      const cfList = document.getElementById('custom-fields-list');
+      cfList.innerHTML = (lc.customFields || []).map((f, i) => `
+        <div style="display:flex;gap:0.5rem;align-items:flex-start;padding:0.65rem;background:white;border:1px solid var(--border);border-radius:7px;margin-bottom:0.4rem;">
+          <div style="flex:1;display:flex;flex-direction:column;gap:0.4rem;">
+            <input type="text" value="${escAttr(f.label)}" placeholder="Field label (e.g. URL to remove)"
+                   oninput="updateCustomField(${i},'label',this.value)">
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+              <select style="font-size:0.85rem;" onchange="updateCustomField(${i},'type',this.value)">
+                <option value="text"     ${f.type==='text'    ?'selected':''}>Text</option>
+                <option value="textarea" ${f.type==='textarea'?'selected':''}>Text area</option>
+                <option value="url"      ${f.type==='url'     ?'selected':''}>URL</option>
+              </select>
+              <input type="text" value="${escAttr(f.placeholder||'')}" placeholder="Placeholder text"
+                     style="flex:1;" oninput="updateCustomField(${i},'placeholder',this.value)">
+              <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.82rem;font-weight:400;white-space:nowrap;cursor:pointer;">
+                <input type="checkbox" ${f.required?'checked':''} onchange="updateCustomField(${i},'required',this.checked)">
+                Required
+              </label>
+            </div>
+          </div>
+          <button class="icon-btn danger" onclick="deleteCustomField(${i})">×</button>
         </div>
       `).join('');
     }
@@ -971,7 +1131,7 @@ const Storage={
           ctaType: t === 1 ? 'download' : t === 2 ? 'schedule' : 'contact',
         })),
         availableFlags: [],
-        leadCapture: { fields: ['name','email','phone','deadline'], issueTypeLabel: '', issueTypeOptions: [] },
+        leadCapture: { fields: ['name','email','phone','deadline'], issueTypeLabel: '', issueTypeOptions: [], customFields: [] },
       };
       Storage.saveQuiz(newQuiz);
       selectQuiz(id);
