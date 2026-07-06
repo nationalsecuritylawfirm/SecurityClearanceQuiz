@@ -173,7 +173,7 @@ const SEED_QUIZZES=[{id:'sf86-red-flags',slug:'sf86-red-flags',title:'SF-86 Read
   <script>
 const KEYS={quizzes:'ql_quizzes',responses:'ql_responses'};
 const Storage={
-  init(){if(!localStorage.getItem(KEYS.quizzes))localStorage.setItem(KEYS.quizzes,JSON.stringify(SEED_QUIZZES));},
+  init(){const ex=JSON.parse(localStorage.getItem(KEYS.quizzes)||'[]');const ids=new Set(ex.map(q=>q.id));localStorage.setItem(KEYS.quizzes,JSON.stringify([...ex,...SEED_QUIZZES.filter(q=>!ids.has(q.id))]));},
   getQuizzes(){return JSON.parse(localStorage.getItem(KEYS.quizzes)||'[]');},
   getQuiz(id){return this.getQuizzes().find(q=>q.id===id||q.slug===id)||null;},
   saveQuiz(quiz){const qs=this.getQuizzes();const i=qs.findIndex(q=>q.id===quiz.id);if(i>=0)qs[i]=quiz;else qs.push(quiz);localStorage.setItem(KEYS.quizzes,JSON.stringify(qs));},
