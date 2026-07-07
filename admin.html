@@ -245,7 +245,6 @@ input[type=text],input[type=email],input[type=tel],select,textarea { padding:.55
     </div>
 
     <div class="table-wrap">
-      <div style="overflow-x:auto;">
         <table>
           <thead>
             <tr>
@@ -255,17 +254,13 @@ input[type=text],input[type=email],input[type=tel],select,textarea { padding:.55
               <th>Flags</th>
               <th>Name</th>
               <th>Email</th>
-              <th>Phone</th>
-              <th>Deadline?</th>
-              <th>Issue type</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="responses-tbody">
-            <tr class="empty-row"><td colspan="10">Loading…</td></tr>
+            <tr class="empty-row"><td colspan="7">Loading…</td></tr>
           </tbody>
         </table>
-      </div>
     </div>
   </div>
 
@@ -365,7 +360,7 @@ const Storage={
       const tbody = document.getElementById('responses-tbody');
 
       if (!responses.length) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No responses yet. Share a quiz link to start collecting leads.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No responses yet. Share a quiz link to start collecting leads.</td></tr>';
         return;
       }
 
@@ -397,9 +392,6 @@ const Storage={
             </td>
             <td class="td-name">${escHtml(lc.name || '—')}</td>
             <td>${lc.email ? `<a href="mailto:${encodeURIComponent(lc.email)}" style="color:var(--blue)">${escHtml(lc.email)}</a>` : '—'}</td>
-            <td>${escHtml(lc.phone || '—')}</td>
-            <td>${escHtml(lc.deadline || '—')}</td>
-            <td>${escHtml(lc.issueType || '—')}</td>
             <td style="white-space:nowrap;">
               <button class="view-btn" onclick="viewResponse('${escHtml(r.id)}')">View</button>
               <button class="del-btn" title="Delete" onclick="deleteRow('${escHtml(r.id)}')">✕</button>
