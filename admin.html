@@ -135,6 +135,72 @@ input[type=text],input[type=email],input[type=tel],select,textarea { padding:.55
       margin-bottom: 1rem;
       flex-wrap: wrap;
     }
+
+    /* ── Detail drawer ── */
+    .drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.4);
+      z-index: 200;
+      display: flex;
+      align-items: stretch;
+      justify-content: flex-end;
+    }
+    .drawer-panel {
+      background: white;
+      width: 480px;
+      max-width: 100vw;
+      height: 100%;
+      overflow-y: auto;
+      box-shadow: -4px 0 32px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+    }
+    .drawer-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 1.25rem 1.5rem 1rem;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 1;
+    }
+    .drawer-title { font-size: 1rem; font-weight: 700; color: var(--navy); line-height: 1.4; }
+    .drawer-meta  { font-size: 0.8rem; color: var(--text-3); margin-top: 0.2rem; }
+    .drawer-close {
+      background: none; border: none; font-size: 1.3rem; color: var(--text-3);
+      cursor: pointer; padding: 0 0.25rem; line-height: 1; flex-shrink: 0; margin-left: 1rem;
+    }
+    .drawer-close:hover { color: var(--text); }
+    .drawer-body { padding: 1.25rem 1.5rem; flex: 1; }
+    .drawer-section { margin-bottom: 1.75rem; }
+    .drawer-section-title {
+      font-size: 0.7rem; font-weight: 700; color: var(--text-3); text-transform: uppercase;
+      letter-spacing: 0.07em; margin-bottom: 0.65rem;
+      padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+    }
+    .dl-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .dl-table td { padding: 0.45rem 0; vertical-align: top; border-bottom: 1px solid var(--border); }
+    .dl-table tr:last-child td { border-bottom: none; }
+    .dl-label { color: var(--text-2); width: 150px; padding-right: 0.75rem; flex-shrink: 0; }
+    .dl-value  { color: var(--text); white-space: pre-wrap; word-break: break-word; }
+    .qa-item   { margin-bottom: 0.9rem; }
+    .qa-q { font-size: 0.78rem; color: var(--text-3); margin-bottom: 0.2rem; }
+    .qa-a { font-size: 0.875rem; color: var(--text); font-weight: 500; }
+    .tag-group-label {
+      font-size: 0.72rem; font-weight: 700; color: var(--text-3);
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem; margin-top: 0.75rem;
+    }
+    .tag-group-label:first-child { margin-top: 0; }
+
+    .view-btn {
+      background: none; border: none; color: var(--blue);
+      cursor: pointer; font-size: 0.8rem; font-weight: 500;
+      padding: 0.2rem 0.45rem; border-radius: 4px; line-height: 1; margin-right: 0.2rem;
+    }
+    .view-btn:hover { background: var(--t2-bg); }
   </style>
 </head>
 <body>
@@ -165,12 +231,13 @@ input[type=text],input[type=email],input[type=tel],select,textarea { padding:.55
           <option value="">All quizzes</option>
         </select>
         <select id="filter-tier" onchange="applyFilters()">
-          <option value="">All result tiers</option>
-          <option value="1">Tier 1</option>
-          <option value="2">Tier 2</option>
-          <option value="3">Tier 3</option>
+          <option value="">All results</option>
+          <option value="5">Tier 5</option>
           <option value="4">Tier 4</option>
-          <option value="5">Tier 5 (High urgency)</option>
+          <option value="3">Tier 3</option>
+          <option value="2">Tier 2</option>
+          <option value="1">Tier 1</option>
+          <option value="null">Assessment (no tier)</option>
         </select>
       </div>
       <button class="btn btn-outline btn-sm" onclick="exportCsv()">Export CSV</button>
@@ -202,13 +269,27 @@ input[type=text],input[type=email],input[type=tel],select,textarea { padding:.55
     </div>
   </div>
 
+  <!-- Response detail drawer -->
+  <div id="response-drawer" class="drawer-overlay hidden" onclick="closeDrawer(event)">
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <div>
+          <div class="drawer-title" id="drawer-title"></div>
+          <div class="drawer-meta" id="drawer-meta"></div>
+        </div>
+        <button class="drawer-close" onclick="document.getElementById('response-drawer').classList.add('hidden')">×</button>
+      </div>
+      <div class="drawer-body" id="drawer-body"></div>
+    </div>
+  </div>
+
   <script>
-const SEED_QUIZZES=[{id:'sf86-red-flags',slug:'sf86-red-flags',title:'SF-86 Readiness Check',subtitle:'Do You Have Any Security Clearance Red Flags?',groundingNote:'',questions:[],results:[{tier:1,label:'Ready to Submit — Keep It Accurate',message:'',ctaText:'Download the SF-86 final review checklist',ctaType:'download'},{tier:2,label:'Information Gaps',message:'',ctaText:'Get the SF-86 document checklist',ctaType:'download'},{tier:3,label:'Potential Red Flags — Explanation May Matter',message:'',ctaText:'Schedule a pre-submission clearance consultation',ctaType:'schedule'},{tier:4,label:'Disclosure Accuracy Concern',message:'',ctaText:'Speak with a clearance attorney',ctaType:'contact'},{tier:5,label:'Government Action — High Urgency',message:'',ctaText:'Request an urgent case review',ctaType:'contact'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}},{id:'debt-taxes-clearance-risk',slug:'debt-taxes-clearance-risk',title:'Debt, Taxes & Security Clearance Risk Check',subtitle:'Could Your Financial Issue Affect Your Clearance?',groundingNote:'',questions:[],results:[{tier:1,label:'No Major Financial Issue Flagged',message:'',ctaText:'',ctaType:'download'},{tier:2,label:'Information or Documentation Gap',message:'',ctaText:'',ctaType:'download'},{tier:3,label:'Resolved or Managed Financial Issue',message:'',ctaText:'',ctaType:'download'},{tier:4,label:'Active Financial Concern',message:'',ctaText:'',ctaType:'schedule'},{tier:5,label:'Disclosure or Government Action Concern — High Urgency',message:'',ctaText:'',ctaType:'contact'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'What type of issue?',issueTypeOptions:['Debt','Taxes','Bankruptcy','Collections','Garnishment','SOR or LOI','Other']}},{id:'self-reporting-checker',slug:'self-reporting-checker',title:'Self-Reporting Checker',subtitle:'Do You Need to Report This to Your Security Office?',groundingNote:'',questions:[],results:[{tier:1,label:'No Obvious Reporting Trigger Flagged',message:'',ctaText:'',ctaType:'download'},{tier:2,label:'Possible Reporting Issue',message:'',ctaText:'',ctaType:'download'},{tier:3,label:'Likely Self-Reporting Issue',message:'',ctaText:'',ctaType:'schedule'},{tier:4,label:'Delay or Disclosure Concern',message:'',ctaText:'',ctaType:'contact'},{tier:5,label:'Security Incident, Formal Inquiry, or Deadline — High Urgency',message:'',ctaText:'',ctaType:'contact'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}},{id:'content-removal-google',slug:'content-removal-google',title:'Can This Be Removed From Google?',subtitle:'Online Content Removal Assessment',groundingNote:'',questions:[],results:[{tier:1,label:'No Significant Obstacles Identified',message:'',ctaText:'Schedule My Free Consultation',ctaType:'schedule'},{tier:2,label:'Potential Challenges Identified',message:'',ctaText:'Schedule My Free Consultation',ctaType:'schedule'},{tier:3,label:'Significant Obstacles Identified — Further Review Recommended',message:'',ctaText:'Schedule My Free Consultation',ctaType:'schedule'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[],customFields:[{label:'URL(s) to the content you want removed',type:'textarea',placeholder:'https://example.com/article...',required:false}]}},{id:'military-discharge-upgrade',slug:'military-discharge-upgrade',title:'Military Discharge Upgrade Assessment',subtitle:'NSLF Attorney Assessment Engine',scoringMode:'tag-collection',questions:[],results:[],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}}];
+const SEED_QUIZZES=[{id:'sf86-red-flags',slug:'sf86-red-flags',title:'SF-86 Readiness Check',subtitle:'Do You Have Any Security Clearance Red Flags?',groundingNote:'',questions:[],results:[{tier:1,label:'Ready to Submit — Keep It Accurate',message:'',ctaText:'Download the SF-86 final review checklist',ctaType:'download'},{tier:2,label:'Information Gaps',message:'',ctaText:'Get the SF-86 document checklist',ctaType:'download'},{tier:3,label:'Potential Red Flags — Explanation May Matter',message:'',ctaText:'Schedule a pre-submission clearance consultation',ctaType:'schedule'},{tier:4,label:'Disclosure Accuracy Concern',message:'',ctaText:'Speak with a clearance attorney',ctaType:'contact'},{tier:5,label:'Government Action — High Urgency',message:'',ctaText:'Request an urgent case review',ctaType:'contact'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}},{id:'debt-taxes-clearance-risk',slug:'debt-taxes-clearance-risk',title:'Debt, Taxes & Security Clearance Risk Check',subtitle:'Could Your Financial Issue Affect Your Clearance?',groundingNote:'',questions:[],results:[{tier:1,label:'No Major Financial Issue Flagged',message:'',ctaText:'',ctaType:'download'},{tier:2,label:'Information or Documentation Gap',message:'',ctaText:'',ctaType:'download'},{tier:3,label:'Resolved or Managed Financial Issue',message:'',ctaText:'',ctaType:'download'},{tier:4,label:'Active Financial Concern',message:'',ctaText:'',ctaType:'schedule'},{tier:5,label:'Disclosure or Government Action Concern — High Urgency',message:'',ctaText:'',ctaType:'contact'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'What type of issue?',issueTypeOptions:['Debt','Taxes','Bankruptcy','Collections','Garnishment','SOR or LOI','Other']}},{id:'self-reporting-checker',version:2,slug:'self-reporting-checker',title:'Self-Reporting Checker',subtitle:'Do You Need to Report This to Your Security Office?',groundingNote:"DCSA says clearance holders are required to self-report life events or incidents that could affect clearance eligibility, and that agencies may have different self-reporting procedures.",questions:[{id:'sr-q1',order:1,text:'What best describes your current status?',options:[{id:'sr-q1o1',text:'I currently hold a security clearance',tier:1,flags:[]},{id:'sr-q1o2',text:'I hold a public trust or sensitive position',tier:1,flags:[]},{id:'sr-q1o3',text:'I am an applicant or recently submitted, but I do not hold the clearance/position yet',tier:2,flags:['May not be covered by self-reporting requirements'],tag:'reporting-coverage'},{id:'sr-q1o4',text:'My access, clearance, or position is already suspended, restricted, or under review',tier:5,flags:['Access suspended or under review'],tag:'access-restricted'}]},{id:'sr-q2',order:2,text:'Any foreign travel, foreign contact, or foreign interest issue?',options:[{id:'sr-q2o1',text:'No',tier:1,flags:[]},{id:'sr-q2o2',text:'Foreign travel outside the U.S., including planned, recent, or unexpected travel',tier:3,flags:['Foreign travel'],tag:'foreign-issue'},{id:'sr-q2o3',text:'Foreign spouse, partner, roommate, close contact, or continuing foreign contact',tier:3,flags:['Foreign contact or relationship'],tag:'foreign-issue'},{id:'sr-q2o4',text:'Foreign citizenship, passport, voting, property, bank account, business, or financial interest',tier:3,flags:['Foreign citizenship or financial interest'],tag:'foreign-issue'},{id:'sr-q2o5',text:'I am not sure what foreign-related information counts',tier:2,flags:['Uncertainty about foreign reporting']}]},{id:'sr-q3',order:3,text:'Any police, criminal, DUI, or court issue?',options:[{id:'sr-q3o1',text:'No',tier:1,flags:[]},{id:'sr-q3o2',text:'Older or minor matter, now resolved',tier:2,flags:['Police or court history']},{id:'sr-q3o3',text:'Recent arrest, charge, DUI/DWI, summons, upcoming court date, probation/parole, or unresolved case',tier:3,flags:['Police or court history','Recent or pending legal matter'],tag:'criminal-matter'},{id:'sr-q3o4',text:'Serious or sensitive matter (felony, domestic violence, protective order, violence, firearms/explosives, or drug-related)',tier:3,flags:['Police or court history','Serious criminal matter'],tag:'criminal-matter'},{id:'sr-q3o5',text:'I am not sure whether I need to report it',tier:2,flags:['Disclosure uncertainty']}]},{id:'sr-q4',order:4,text:'Any financial issue?',options:[{id:'sr-q4o1',text:'No',tier:1,flags:[]},{id:'sr-q4o2',text:'Past financial issue, now resolved',tier:2,flags:['Financial issue']},{id:'sr-q4o3',text:'Current delinquent debt, collections, charge-offs, or inability to meet financial obligations',tier:3,flags:['Financial issue','Current delinquency'],tag:'financial-concern'},{id:'sr-q4o4',text:'Tax debt, bankruptcy, wage garnishment, lien, foreclosure, or eviction',tier:3,flags:['Financial issue','Tax or bankruptcy issue'],tag:'financial-concern'},{id:'sr-q4o5',text:'I am not sure what appears on my credit report or public records',tier:2,flags:['Unknown credit or public records']}]},{id:'sr-q5',order:5,text:'Any drug, alcohol, substance, or treatment-related issue?',options:[{id:'sr-q5o1',text:'No',tier:1,flags:[]},{id:'sr-q5o2',text:'Older isolated issue, now resolved',tier:2,flags:['Drug or alcohol issue']},{id:'sr-q5o3',text:'Recent marijuana/THC, drug, CBD/delta, or positive drug test issue',tier:3,flags:['Drug or substance issue'],tag:'substance-issue'},{id:'sr-q5o4',text:'DUI/DWI, alcohol-related incident, repeated alcohol incidents, or work/school/military alcohol issue',tier:3,flags:['Alcohol incident'],tag:'substance-issue'},{id:'sr-q5o5',text:'Substance abuse counseling/treatment, relapse, or counseling ordered because of conduct or performance',tier:3,flags:['Substance counseling or treatment'],tag:'substance-issue'}]},{id:'sr-q6',order:6,text:'Any classified information, security, cyber, media, or outside activity issue?',options:[{id:'sr-q6o1',text:'No',tier:1,flags:[]},{id:'sr-q6o2',text:'Lost or mishandled classified/sensitive information, badge, device, credentials, or government property',tier:5,flags:['Classified information or security incident'],tag:'security-incident'},{id:'sr-q6o3',text:'Possible unauthorized disclosure, spillage, cyber/IT misuse, or security violation',tier:5,flags:['Unauthorized disclosure or cyber issue'],tag:'security-incident'},{id:'sr-q6o4',text:'Foreign person asked about sensitive work, suspicious contact, coercion, blackmail, or exploitation concern',tier:5,flags:['Suspicious contact or coercion'],tag:'suspicious-contact'},{id:'sr-q6o5',text:'Outside employment/volunteer activity, foreign business, media contact, publication, public speaking, or concern about another covered person',tier:3,flags:['Outside activity or media contact'],tag:'outside-activity'}]},{id:'sr-q7',order:7,text:'Have you already reported the issue?',options:[{id:'sr-q7o1',text:'No, I have not reported it yet',tier:1,flags:[]},{id:'sr-q7o2',text:'Yes, I reported it verbally or informally',tier:2,flags:['Informal report only'],tag:'informal-report'},{id:'sr-q7o3',text:'Yes, I reported it in writing',tier:1,flags:[]},{id:'sr-q7o4',text:'I may have waited too long',tier:4,flags:['Reporting delay'],tag:'reporting-delay'},{id:'sr-q7o5',text:'I may have left something out or given inconsistent details',tier:4,flags:['Incomplete or inconsistent report'],tag:'incomplete-report'}]},{id:'sr-q8',order:8,text:'Has anyone contacted you, or is there a deadline?',options:[{id:'sr-q8o1',text:'No',tier:1,flags:[]},{id:'sr-q8o2',text:'My FSO, security office, HR, command, or supervisor asked basic follow-up questions',tier:3,flags:['Security office contact']},{id:'sr-q8o3',text:'I was asked for a written statement, documents, or explanation',tier:5,flags:['Written request from security office'],tag:'formal-inquiry'},{id:'sr-q8o4',text:'My access was suspended/restricted, or I received formal written questions or notice',tier:5,flags:['Access suspended or formal notice'],tag:'formal-inquiry'},{id:'sr-q8o5',text:'I have a deadline, the deadline passed, or I am not sure when it is due',tier:5,flags:['Deadline concern'],tag:'urgent-deadline'}]},{id:'sr-q9',order:9,text:'What would you like help with?',options:[{id:'sr-q9o1',text:'Figuring out whether or how to report something',tier:2,flags:[]},{id:'sr-q9o2',text:'Preparing a self-report or explanation',tier:3,flags:[]},{id:'sr-q9o3',text:'Fixing a late, incomplete, or inconsistent report',tier:4,flags:[]},{id:'sr-q9o4',text:'Responding to security questions, a deadline, suspension, or access restriction',tier:5,flags:[]},{id:'sr-q9o5',text:'Just understanding my risk',tier:1,flags:[]}]}],results:[{tier:1,label:'No Obvious Reporting Trigger Flagged — Confirm Agency Rules',forPeopleWith:'People with no flagged event, no government contact, no reporting delay, and no security-sensitive issue.',message:'Your answers did not identify an obvious self-reporting obligation based on the categories reviewed. Self-reporting requirements vary by agency, clearance level, and position — and some events require reporting even if they seem minor. If anything has changed in your personal, financial, or professional life since your last investigation, review your agency\'s specific requirements before concluding no report is needed.',ctaText:'Download the Security Clearance Self-Reporting Checklist',ctaType:'download',tags:[]},{tier:2,label:'Possible Reporting Issue — Clarify Before You Assume',forPeopleWith:'People with uncertainty about whether they are covered, older or minor resolved issues, or informal reporting only.',message:'Your situation may involve a reporting obligation that depends on specific details — your agency\'s policy, the timing of the event, how it was documented, and your current status. Before concluding no report is needed, confirm your agency\'s self-reporting procedures, gather the relevant dates and documents, and consider consulting a security clearance attorney if the situation remains unclear.',ctaText:'Get the Self-Reporting Preparation Checklist',ctaType:'download',tags:[{id:'reporting-coverage',label:'Am I Even Covered?',message:'You indicated you may not yet hold the clearance or position. Self-reporting requirements formally apply to clearance holders, but many attorneys recommend proactively documenting and reporting events that occur during a pending investigation — a later omission can create a bigger problem than the event itself. An attorney can help you decide whether voluntary disclosure makes sense in your situation.'},{id:'informal-report',label:'Verbal or Informal Report Only',message:'You reported verbally or informally. Verbal reports create no paper trail — if the event later surfaces in a reinvestigation or formal inquiry, there may be no record that you disclosed it. Consider following up in writing to your FSO or security office to create a documented record of your disclosure, even if a formal written report was not required.'}]},{tier:3,label:'Likely Self-Reporting Issue — Prepare a Clear Report',forPeopleWith:'People with foreign travel, foreign contacts, arrests, DUI or court issues, financial problems, drug or alcohol issues, or outside activities.',message:'Based on your answers, you appear to have a self-reporting obligation. The most important next step is preparing an accurate, complete account: what happened, when it happened, who was involved, whether it is ongoing, and what steps you have taken. A clear, organized self-report submitted before you are asked is consistently treated more favorably than one submitted after an investigation begins.',ctaText:'Schedule a Self-Reporting Strategy Consultation',ctaType:'schedule',tags:[{id:'foreign-issue',label:'Foreign Contact, Travel, or Interest',message:'Foreign travel, contacts, and financial interests are among the most frequently missed self-reporting categories. The obligation is not limited to contacts with hostile or covert actors — continuing relationships with foreign nationals, foreign travel (including personal travel), and foreign financial interests may all require disclosure. Your agency\'s FSO or reporting form can clarify what must be documented and when.'},{id:'criminal-matter',label:'Police, Court, or Legal Matter',message:'Arrests, criminal charges, DUIs, summons, and court appearances are typically self-reportable — often regardless of how the case is ultimately resolved or whether the record was expunged. The reporting obligation usually begins when the event occurs, not when the case closes. If you are unsure whether a specific matter is covered, document the full timeline and confirm with your FSO or an attorney before the deadline passes.'},{id:'financial-concern',label:'Financial or Debt Issue',message:'Financial problems — including unpaid debt, collections, judgments, garnishments, tax issues, and bankruptcy — can raise concerns under the financial considerations adjudicative guideline. What matters most is not only what happened, but whether you are taking steps to address it. A voluntary, organized disclosure that explains the circumstances and your plan to resolve the issue is far more effective than silence or a delayed report.'},{id:'substance-issue',label:'Drug, Alcohol, or Treatment Issue',message:'Drug use, alcohol incidents, and treatment history — including a positive drug test, DUI, alcohol-related incident, or referral for counseling — are typically reportable events, even when no legal action resulted. Agencies are required to consider context and rehabilitation, and voluntary disclosure before you are asked is consistently treated more favorably than a disclosure prompted by a third-party report or investigation.'},{id:'outside-activity',label:'Outside Employment or Media Activity',message:'Outside employment, consulting work, business activity, media contact, or public speaking related to your work or expertise may require prior approval or post-activity reporting depending on your agency and position. The obligations vary — some agencies require only disclosure after the fact, others require advance written approval. Confirm with your FSO before taking on any outside activity, and document any approval you receive.'}]},{tier:4,label:'Delay or Disclosure Concern — Be Careful Before Correcting',forPeopleWith:'People with a late report, incomplete report, inconsistent details, or omitted facts.',message:'Your answers suggest the issue may involve not only what happened, but also how and when it was reported. A late, incomplete, or inconsistent self-report creates a separate concern beyond the original event — specifically, whether the problem reflects an oversight or a pattern of poor candor. Before submitting any correction or supplement, organize the full timeline, identify what was and was not reported, and understand the reason the gap occurred.',ctaText:'Speak with a clearance attorney before correcting or supplementing a report',ctaType:'contact',tags:[{id:'reporting-delay',label:'Possible Late Report',message:'A delayed self-report raises two issues: the underlying event, and the failure to report it on time. How the delay is explained — and how quickly you act now — can significantly affect how the situation is evaluated. Investigators distinguish between an oversight and an intentional omission. An attorney can help you characterize the delay accurately, identify any mitigating factors, and submit a late report in a way that minimizes additional risk.'},{id:'incomplete-report',label:'Incomplete or Inconsistent Report',message:'An incomplete or inconsistent self-report can raise candor concerns that outlast the original issue. Before submitting any correction, you need to understand exactly what you previously reported, identify the specific gap or inconsistency, and determine the best approach — whether that is a written supplement, a corrected statement, or a formal clarification. An attorney can review your prior report and help you close the gap without creating additional problems.'}]},{tier:5,label:'Security Incident, Formal Inquiry, or Deadline — High Urgency',forPeopleWith:'People with classified information issues, unauthorized disclosure, suspicious contact, written security questions, access restriction, suspension, or deadline.',message:'Your answers suggest this situation requires prompt attention. The facts, the timing, and how you respond now can significantly affect the outcome. If you have been contacted by a security office, received a formal request, or have a deadline approaching, the decisions you make in the next few days matter. A security clearance attorney can help you understand what is being asked and how to respond accurately, completely, and in a way that protects your interests.',ctaText:'Request an urgent case review',ctaType:'contact',tags:[{id:'security-incident',label:'Classified Information or Security Incident',message:'Lost, mishandled, or improperly disclosed classified or sensitive information is treated as a security incident — not just a reporting obligation. These incidents typically require reporting through formal channels immediately, and your response becomes part of your security file. An attorney can help you respond in a way that is accurate, complete, and protective of your interests, and advise you on how to cooperate with any follow-up inquiry.'},{id:'suspicious-contact',label:'Suspicious Contact or Coercion',message:'Contact by a foreign intelligence officer, solicitation of classified information, an attempted coercion, or a blackmail attempt must be reported immediately under 32 CFR and most agency security policies. Early disclosure — with legal guidance on what to say and how to say it — is far better than delayed reporting after a formal investigation begins. Do not discuss the contact with unauthorized persons, and consult an attorney before submitting any written statement.'},{id:'formal-inquiry',label:'Formal Security Review or Written Request',message:'A written request for information, a formal notice, or a requirement to provide a written statement signals that a security review has already begun. Your response at this stage is part of the official record and will be evaluated for accuracy, completeness, and consistency with other available information. An attorney can review the specific request and help you respond in a way that is accurate, thorough, and appropriately framed.'},{id:'access-restricted',label:'Access Suspended, Restricted, or Under Review',message:'An active suspension or restriction of your access or clearance means a formal security determination process has likely already begun. What you say — and when — during this period can significantly affect the outcome. In some cases, you have the right to a written explanation and an opportunity to respond. An attorney who handles security clearance matters can advise you on your rights, the likely process and timeline, and how to respond if your agency or command directs questions to you.'},{id:'urgent-deadline',label:'Deadline — Approaching or Missed',message:'A missed or uncertain deadline is a time-sensitive problem. The longer you wait, the harder it becomes to characterize any delay as inadvertent rather than deliberate. If a deadline has already passed, prompt action now — with a clear, documented explanation of why the report was delayed — is still better than continued silence. An attorney can help you move quickly, frame the situation accurately, and minimize the risk that the delay becomes the central issue.'}]}],availableFlags:['Foreign travel','Foreign contact or relationship','Foreign citizenship or financial interest','Uncertainty about foreign reporting','May not be covered by self-reporting requirements','Police or court history','Recent or pending legal matter','Serious criminal matter','Disclosure uncertainty','Financial issue','Current delinquency','Tax or bankruptcy issue','Unknown credit or public records','Drug or alcohol issue','Drug or substance issue','Alcohol incident','Substance counseling or treatment','Classified information or security incident','Unauthorized disclosure or cyber issue','Suspicious contact or coercion','Outside activity or media contact','Access suspended or under review','Informal report only','Reporting delay','Incomplete or inconsistent report','Security office contact','Written request from security office','Access suspended or formal notice','Deadline concern'],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}},{id:'content-removal-google',slug:'content-removal-google',title:'Can This Be Removed From Google?',subtitle:'Online Content Removal Assessment',groundingNote:'',questions:[],results:[{tier:1,label:'No Significant Obstacles Identified',message:'',ctaText:'Schedule My Free Consultation',ctaType:'schedule'},{tier:2,label:'Potential Challenges Identified',message:'',ctaText:'Schedule My Free Consultation',ctaType:'schedule'},{tier:3,label:'Significant Obstacles Identified — Further Review Recommended',message:'',ctaText:'Schedule My Free Consultation',ctaType:'schedule'}],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[],customFields:[{label:'URL(s) to the content you want removed',type:'textarea',placeholder:'https://example.com/article...',required:false}]}},{id:'military-discharge-upgrade',slug:'military-discharge-upgrade',title:'Military Discharge Upgrade Assessment',subtitle:'NSLF Attorney Assessment Engine',scoringMode:'tag-collection',questions:[],results:[],availableFlags:[],leadCapture:{fields:['name','email','phone','deadline'],issueTypeLabel:'',issueTypeOptions:[]}}];
   </script>
   <script>
 const KEYS={quizzes:'ql_quizzes',responses:'ql_responses'};
 const Storage={
-  init(){const ex=JSON.parse(localStorage.getItem(KEYS.quizzes)||'[]');const ids=new Set(ex.map(q=>q.id));localStorage.setItem(KEYS.quizzes,JSON.stringify([...ex,...SEED_QUIZZES.filter(q=>!ids.has(q.id))]));},
+  init(){const ex=JSON.parse(localStorage.getItem(KEYS.quizzes)||'[]');const exMap=new Map(ex.map(q=>[q.id,q]));const merged=SEED_QUIZZES.map(seed=>{const stored=exMap.get(seed.id);if(!stored)return seed;if(seed.version&&(!stored.version||seed.version>stored.version))return seed;return stored;});const seedIds=new Set(SEED_QUIZZES.map(q=>q.id));const user=ex.filter(q=>!seedIds.has(q.id));localStorage.setItem(KEYS.quizzes,JSON.stringify([...merged,...user]));},
   getQuizzes(){return JSON.parse(localStorage.getItem(KEYS.quizzes)||'[]');},
   getQuiz(id){return this.getQuizzes().find(q=>q.id===id||q.slug===id)||null;},
   saveQuiz(quiz){const qs=this.getQuizzes();const i=qs.findIndex(q=>q.id===quiz.id);if(i>=0)qs[i]=quiz;else qs.push(quiz);localStorage.setItem(KEYS.quizzes,JSON.stringify(qs));},
@@ -252,32 +333,32 @@ const Storage={
       const tierFilter = document.getElementById('filter-tier').value;
       let filtered = allResponses;
       if (quizFilter) filtered = filtered.filter(r => r.quizId === quizFilter);
-      if (tierFilter) filtered = filtered.filter(r => String(r.resultTier) === tierFilter);
+      if (tierFilter === 'null') filtered = filtered.filter(r => r.resultTier == null);
+      else if (tierFilter) filtered = filtered.filter(r => String(r.resultTier) === tierFilter);
       renderTable(filtered);
     }
 
     function renderStats(responses) {
       const total = responses.length;
-      const tierCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+
+      const quizCounts = {};
       for (const r of responses) {
-        if (r.resultTier in tierCounts) tierCounts[r.resultTier]++;
+        if (!quizCounts[r.quizId]) quizCounts[r.quizId] = { title: r.quizTitle || r.quizId, count: 0 };
+        quizCounts[r.quizId].count++;
       }
 
-      const statsHtml = [
-        { value: total, label: 'Total responses' },
-        { value: tierCounts[5], label: 'Tier 5 — Urgent', cls: 'tier-5' },
-        { value: tierCounts[4], label: 'Tier 4 — Concern', cls: 'tier-4' },
-        { value: tierCounts[3], label: 'Tier 3 — Red flags', cls: 'tier-3' },
-        { value: tierCounts[2], label: 'Tier 2 — Info gaps', cls: 'tier-2' },
-        { value: tierCounts[1], label: 'Tier 1 — No issue', cls: 'tier-1' },
-      ].map(s => `
+      const quizCards = Object.values(quizCounts).map(q => `
         <div class="stat-card">
-          <div class="stat-value">${s.value}</div>
-          <div class="stat-label">${s.label}</div>
-        </div>
-      `).join('');
+          <div class="stat-value">${q.count}</div>
+          <div class="stat-label">${escHtml(q.title)}</div>
+        </div>`).join('');
 
-      document.getElementById('stats-row').innerHTML = statsHtml;
+      document.getElementById('stats-row').innerHTML = `
+        <div class="stat-card">
+          <div class="stat-value">${total}</div>
+          <div class="stat-label">Total responses</div>
+        </div>
+        ${quizCards}`;
     }
 
     function renderTable(responses) {
@@ -293,14 +374,22 @@ const Storage={
         const date = new Date(r.timestamp);
         const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-        const flags = (r.triggeredFlags || []).slice(0, 3);
+        const quiz = allQuizzes.find(q => q.id === r.quizId);
+        const flagLib = (quiz && quiz.availableFlags) || [];
+        const flags = (r.triggeredFlags || []).slice(0, 3).map(fId => {
+          const def = Array.isArray(flagLib) && flagLib.find(f => f.id === fId);
+          return (def && def.label) ? def.label : fId;
+        });
 
         return `
           <tr>
             <td class="td-date">${dateStr}<br><span style="font-size:0.75rem">${timeStr}</span></td>
             <td>${escHtml(r.quizTitle || r.quizId)}</td>
             <td>
-              <span class="tier-badge tier-${r.resultTier}">Tier ${r.resultTier}</span>
+              ${r.resultTier != null
+                ? `<span class="tier-badge tier-${r.resultTier}">Tier ${r.resultTier}</span>`
+                : `<span class="tier-badge" style="background:#f1f5f9;color:var(--text-2);border-color:var(--border-md);">Assessment</span>`
+              }
               <div style="font-size:0.78rem;color:var(--text-2);margin-top:0.25rem;max-width:160px;">${escHtml(r.resultLabel || '')}</div>
             </td>
             <td>
@@ -311,7 +400,8 @@ const Storage={
             <td>${escHtml(lc.phone || '—')}</td>
             <td>${escHtml(lc.deadline || '—')}</td>
             <td>${escHtml(lc.issueType || '—')}</td>
-            <td>
+            <td style="white-space:nowrap;">
+              <button class="view-btn" onclick="viewResponse('${escHtml(r.id)}')">View</button>
               <button class="del-btn" title="Delete" onclick="deleteRow('${escHtml(r.id)}')">✕</button>
             </td>
           </tr>
@@ -374,6 +464,112 @@ const Storage={
       a.click();
       URL.revokeObjectURL(url);
     }
+
+    function viewResponse(id) {
+      const r = allResponses.find(x => x.id === id);
+      if (!r) return;
+
+      const lc = r.leadCapture || {};
+      const date = new Date(r.timestamp);
+      const dateStr = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) +
+                      ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+      document.getElementById('drawer-title').textContent = r.quizTitle || r.quizId;
+      document.getElementById('drawer-meta').textContent = dateStr;
+
+      // ── Result section ──
+      const resultBadge = r.resultTier != null
+        ? `<span class="tier-badge tier-${r.resultTier}">Tier ${r.resultTier}</span>`
+        : `<span class="tier-badge" style="background:#f1f5f9;color:var(--text-2);border-color:var(--border-md);">Assessment</span>`;
+      let resultHtml = `<div style="margin-bottom:0.5rem;">${resultBadge} <span style="font-size:0.875rem;font-weight:500;">${escHtml(r.resultLabel || '')}</span></div>`;
+
+      // Collected tags (attorney assessment)
+      if (r.collectedTags && r.collectedTags.length) {
+        const quiz = allQuizzes.find(q => q.id === r.quizId);
+        const lib = (quiz && quiz.tagLibrary) || {};
+        const grouped = { theories: [], strengths: [], challenges: [], relief: [] };
+        const catLabel = { theories: 'Legal Theories', strengths: 'Strengths', challenges: 'Challenges', relief: 'Relief Options' };
+        for (const tagId of r.collectedTags) {
+          const tag = lib[tagId];
+          if (tag && grouped[tag.category]) grouped[tag.category].push(tag.label || tagId);
+        }
+        resultHtml += Object.entries(grouped).filter(([,v]) => v.length).map(([cat, tags]) => `
+          <div class="tag-group-label">${catLabel[cat]}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.5rem;">
+            ${tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}
+          </div>`).join('');
+      }
+
+      // Triggered flags (tier-based) — resolve labels from quiz tag library
+      if ((r.triggeredFlags || []).length) {
+        const quiz = allQuizzes.find(q => q.id === r.quizId);
+        const flagLib = (quiz && quiz.availableFlags) || [];
+        const flagPills = r.triggeredFlags.map(fId => {
+          const def = Array.isArray(flagLib) && flagLib.find(f => f.id === fId);
+          const label = (def && def.label) ? def.label : fId;
+          return `<span class="tag">${escHtml(label)}</span>`;
+        }).join(' ');
+        resultHtml += `<div style="margin-top:0.4rem;">${flagPills}</div>`;
+      }
+
+      // ── Contact section ──
+      const STANDARD = new Set(['name','email','phone','deadline','issueType']);
+      const contactRows = [
+        ['Name',     lc.name],
+        ['Email',    lc.email],
+        ['Phone',    lc.phone],
+        ['Deadline', lc.deadline],
+        ['Issue type', lc.issueType],
+        ...Object.entries(lc).filter(([k, v]) => !STANDARD.has(k) && v),
+      ].filter(([, v]) => v).map(([k, v]) =>
+        `<tr>
+          <td class="dl-label dl-table">${escHtml(k)}</td>
+          <td class="dl-value">${k.toLowerCase().includes('email')
+            ? `<a href="mailto:${encodeURIComponent(v)}" style="color:var(--blue)">${escHtml(v)}</a>`
+            : escHtml(v)}</td>
+        </tr>`
+      ).join('');
+
+      // ── Answers section ──
+      const grouped = {};
+      for (const a of (r.answers || [])) {
+        if (!grouped[a.questionId]) grouped[a.questionId] = { text: a.questionText, answers: [] };
+        grouped[a.questionId].answers.push(a.optionText);
+      }
+      const answersHtml = Object.values(grouped).map(g => `
+        <div class="qa-item">
+          <div class="qa-q">${escHtml(g.text)}</div>
+          <div class="qa-a">${g.answers.map(a => escHtml(a)).join('<br>')}</div>
+        </div>`).join('');
+
+      document.getElementById('drawer-body').innerHTML = `
+        <div class="drawer-section">
+          <div class="drawer-section-title">Result</div>
+          ${resultHtml}
+        </div>
+        <div class="drawer-section">
+          <div class="drawer-section-title">Contact Information</div>
+          <table class="dl-table">${contactRows || '<tr><td colspan="2" style="color:var(--text-3)">No contact info recorded</td></tr>'}</table>
+        </div>
+        ${answersHtml ? `
+        <div class="drawer-section">
+          <div class="drawer-section-title">Quiz Answers</div>
+          ${answersHtml}
+        </div>` : ''}
+      `;
+
+      document.getElementById('response-drawer').classList.remove('hidden');
+    }
+
+    function closeDrawer(e) {
+      if (e.target === document.getElementById('response-drawer')) {
+        document.getElementById('response-drawer').classList.add('hidden');
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') document.getElementById('response-drawer').classList.add('hidden');
+    });
 
     function escHtml(str) {
       if (!str) return '';
