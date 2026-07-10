@@ -1,14 +1,8 @@
-const KEYS={quizzes:'ql_quizzes',responses:'ql_responses'};
+// Pure quiz logic shared by the pages. Quizzes now live server-side and are
+// fetched via js/api.js (deploy-plan/03); the old localStorage store and
+// version-aware seed merge are gone. Scoring stays client-side — it's pure
+// logic over the fetched quiz.
 const Storage={
-  init(){const ex=JSON.parse(localStorage.getItem(KEYS.quizzes)||'[]');const exMap=new Map(ex.map(q=>[q.id,q]));const merged=SEED_QUIZZES.map(seed=>{const stored=exMap.get(seed.id);if(!stored)return seed;if(seed.version&&(!stored.version||seed.version>stored.version))return seed;return stored;});const seedIds=new Set(SEED_QUIZZES.map(q=>q.id));const user=ex.filter(q=>!seedIds.has(q.id));localStorage.setItem(KEYS.quizzes,JSON.stringify([...merged,...user]));},
-  getQuizzes(){return JSON.parse(localStorage.getItem(KEYS.quizzes)||'[]');},
-  getQuiz(id){return this.getQuizzes().find(q=>q.id===id||q.slug===id)||null;},
-  saveQuiz(quiz){const qs=this.getQuizzes();const i=qs.findIndex(q=>q.id===quiz.id);if(i>=0)qs[i]=quiz;else qs.push(quiz);localStorage.setItem(KEYS.quizzes,JSON.stringify(qs));},
-  deleteQuiz(id){localStorage.setItem(KEYS.quizzes,JSON.stringify(this.getQuizzes().filter(q=>q.id!==id)));},
-  getResponses(){return JSON.parse(localStorage.getItem(KEYS.responses)||'[]');},
-  saveResponse(r){const rs=this.getResponses();rs.unshift(r);localStorage.setItem(KEYS.responses,JSON.stringify(rs));},
-  deleteResponse(id){localStorage.setItem(KEYS.responses,JSON.stringify(this.getResponses().filter(r=>r.id!==id)));},
-  clearResponses(){localStorage.setItem(KEYS.responses,'[]');},
   scoreAnswers(quiz,opts){
     const mode=quiz.scoringMode||'highest-tier';
     if(mode==='tag-collection'){

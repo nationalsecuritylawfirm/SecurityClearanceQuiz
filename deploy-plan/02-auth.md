@@ -91,6 +91,16 @@ no reason to advertise the URLs to visitors.
 - With the Google session signed out, the silent path fails over to the visible sign-in button, not a broken dashboard.
 - Public quiz-taking flow never touches Google or prompts for anything.
 
+## Amendment (implemented)
+
+The token is mirrored to **sessionStorage** (per-tab, cleared on tab close),
+not held memory-only as written below. Reason: Firefox/Safari block the
+third-party cookie GIS needs, so silent re-acquisition never completes there
+and every refresh/navigation cost a visible prompt. Risk delta is negligible:
+XSS can steal an in-memory token just as easily (hook the GIS callback or call
+authFetch), and disk-level attackers already have the browser's Google
+cookies. "Logout is closing the tab" still holds.
+
 ## Risks / notes
 
 - The claim checks are each load-bearing — especially `aud` (without it, an ID token issued to any other Google-integrated app would be accepted) and `email_verified`. `jose`'s `jwtVerify` + `createRemoteJWKSet` covers signature/expiry/issuer in one call.

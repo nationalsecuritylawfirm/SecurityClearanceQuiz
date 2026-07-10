@@ -348,6 +348,10 @@
         <div class="editor-topbar">
           <h2 id="editor-title">Quiz Title</h2>
           <div class="editor-actions">
+            <div style="display:flex;align-items:center;gap:0.45rem;margin-right:0.5rem;" title="Drafts are hidden from visitors — the quiz list and its direct URL 404 until published. Takes effect on Save.">
+              <button class="toggle-switch" id="publish-toggle" onclick="togglePublished()"></button>
+              <span id="publish-label" style="font-size:0.8rem;color:var(--text-2);white-space:nowrap;">Draft</span>
+            </div>
             <a id="preview-link" href="#" target="_blank" class="btn btn-outline btn-sm">Preview →</a>
             <button class="btn btn-danger btn-sm" onclick="deleteCurrentQuiz()">Delete</button>
             <button class="btn btn-navy btn-sm" onclick="saveCurrentQuiz()">Save Changes</button>
@@ -483,47 +487,82 @@
     </div><!-- /editor-panel -->
   </div><!-- /builder-body -->
 
-  <script src="js/seed.js"></script>
   <script src="js/storage.js"></script>
   <script>
     let currentQuizId = null;
-    let draft = null; // in-memory copy being edited
+    let draft = null;         // in-memory copy being edited
+    let allQuizzes = [];      // full quizzes from the server, drafts included
+    let savedSnapshot = null; // serialized draft as of last load/save — dirty check
 
     // ── Init ─────────────────────────────────────
 
-    function init() {
-      Storage.init();
+    async function init() {
+      const list = document.getElementById('sidebar-list');
+      list.innerHTML = '<div style="padding:1rem;font-size:0.8rem;color:rgba(255,255,255,0.4);text-align:center;">Loading…</div>';
+      try {
+        allQuizzes = await Api.getQuizzesAdmin();
+      } catch {
+        list.innerHTML = `<div style="padding:1rem;font-size:0.8rem;color:rgba(255,255,255,0.6);text-align:center;">
+          Couldn't load quizzes.<br>
+          <button class="btn btn-outline btn-sm" style="margin-top:0.6rem;background:rgba(255,255,255,0.08);color:white;border-color:rgba(255,255,255,0.2);" onclick="init()">Retry</button>
+        </div>`;
+        return;
+      }
       renderSidebar();
       // Auto-select first quiz if any
-      const quizzes = Storage.getQuizzes();
-      if (quizzes.length) selectQuiz(quizzes[0].id);
+      if (!currentQuizId && allQuizzes.length) selectQuiz(allQuizzes[0].id);
     }
 
     // ── Sidebar ───────────────────────────────────
 
+    function getLocalQuiz(id) {
+      return allQuizzes.find(q => q.id === id) || null;
+    }
+
     function renderSidebar() {
-      const quizzes = Storage.getQuizzes();
       const list = document.getElementById('sidebar-list');
-      if (!quizzes.length) {
+      if (!allQuizzes.length) {
         list.innerHTML = '<div style="padding:1rem;font-size:0.8rem;color:rgba(255,255,255,0.4);text-align:center;">No quizzes yet</div>';
         return;
       }
-      list.innerHTML = quizzes.map(q => `
+      list.innerHTML = allQuizzes.map(q => `
         <button class="quiz-item${q.id === currentQuizId ? ' active' : ''}" onclick="selectQuiz('${q.id}')">
-          ${escHtml(q.title)}
+          ${escHtml(q.title)}${q.published ? '' : ' <span style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;opacity:0.65;">· draft</span>'}
         </button>
       `).join('');
     }
 
     function selectQuiz(id) {
+      if (id === currentQuizId) return;
+      if (isDirty() && !confirm('You have unsaved changes that will be lost. Switch quizzes anyway?')) {
+        return;
+      }
       currentQuizId = id;
-      draft = JSON.parse(JSON.stringify(Storage.getQuiz(id)));
+      draft = JSON.parse(JSON.stringify(getLocalQuiz(id)));
+      savedSnapshot = JSON.stringify(draft);
       renderSidebar();
       renderEditor();
       document.getElementById('empty-state').classList.add('hidden');
       document.getElementById('quiz-editor').classList.remove('hidden');
       document.getElementById('quiz-editor').style.display = 'flex';
     }
+
+    // ── Dirty tracking (purely client-side) ───────
+    // The Info/Lead text inputs only sync into the draft on save, so the dirty
+    // check syncs them first, then compares against the last-saved snapshot.
+
+    function isDirty() {
+      if (!draft) return false;
+      syncInfoFields();
+      return JSON.stringify(draft) !== savedSnapshot;
+    }
+
+    window.addEventListener('beforeunload', (e) => {
+      if (isDirty()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
 
     // ── Tab switching ─────────────────────────────
 
@@ -542,6 +581,7 @@
       if (!draft) return;
       document.getElementById('editor-title').textContent = draft.title || 'Untitled Quiz';
       document.getElementById('preview-link').href = `quiz.html?id=${encodeURIComponent(draft.id)}`;
+      renderPublishToggle();
 
       // Info tab
       document.getElementById('f-title').value    = draft.title    || '';
@@ -1284,11 +1324,28 @@
       renderLeadCapture();
     }
 
+    // ── Publish toggle ────────────────────────────
+
+    function renderPublishToggle() {
+      const on = draft && draft.published === true;
+      setToggle('publish-toggle', on);
+      const label = document.getElementById('publish-label');
+      label.textContent = on ? 'Published' : 'Draft';
+      label.style.color = on ? 'var(--blue)' : 'var(--text-2)';
+    }
+
+    function togglePublished() {
+      if (!draft) return;
+      draft.published = draft.published !== true;
+      renderPublishToggle();
+    }
+
     // ── Save / Delete / Create ────────────────────
 
-    function saveCurrentQuiz() {
+    // Pulls the free-text inputs (Info + Lead Capture tabs) into the draft;
+    // used by save and by the dirty check.
+    function syncInfoFields() {
       if (!draft) return;
-      // Sync info fields into draft
       draft.title        = document.getElementById('f-title').value.trim()    || draft.title;
       draft.subtitle     = document.getElementById('f-subtitle').value.trim();
       draft.id           = document.getElementById('f-slug').value.trim()     || draft.id;
@@ -1297,31 +1354,66 @@
       const modeRadio = document.querySelector('input[name="f-scoring-mode"]:checked');
       if (modeRadio) draft.scoringMode = modeRadio.value;
       draft.leadCapture.issueTypeLabel = document.getElementById('f-issuetype-label').value.trim();
-
-      // If id changed, remove old entry
-      if (currentQuizId !== draft.id) {
-        Storage.deleteQuiz(currentQuizId);
-        currentQuizId = draft.id;
-      }
-
-      Storage.saveQuiz(draft);
-      document.getElementById('editor-title').textContent = draft.title;
-      document.getElementById('preview-link').href = `quiz.html?id=${encodeURIComponent(draft.id)}`;
-      renderSidebar();
-      showToast('Changes saved');
     }
 
-    function deleteCurrentQuiz() {
+    async function saveCurrentQuiz() {
+      if (!draft) return;
+      syncInfoFields();
+      if (!/^[A-Za-z0-9_-]+$/.test(draft.id)) {
+        alert('The URL slug may only contain letters, numbers, hyphens, and underscores.');
+        return;
+      }
+
+      const oldId = currentQuizId;
+      let saved;
+      try {
+        saved = await Api.saveQuiz(draft); // server bumps version/updatedAt
+      } catch (err) {
+        showToast('Save failed — ' + err.message);
+        return;
+      }
+      // If the slug changed, the quiz was written under the new id; remove the
+      // old copy so it doesn't linger as a duplicate.
+      if (oldId && oldId !== saved.id) {
+        try {
+          await Api.deleteQuiz(oldId);
+        } catch {
+          showToast('Saved under the new slug, but the old copy could not be deleted.');
+        }
+      }
+
+      draft = saved;
+      currentQuizId = saved.id;
+      savedSnapshot = JSON.stringify(draft);
+      const idx = allQuizzes.findIndex(q => q.id === oldId);
+      if (idx >= 0) allQuizzes[idx] = JSON.parse(JSON.stringify(saved));
+      else allQuizzes.push(JSON.parse(JSON.stringify(saved)));
+
+      document.getElementById('editor-title').textContent = draft.title;
+      document.getElementById('preview-link').href = `quiz.html?id=${encodeURIComponent(draft.id)}`;
+      renderPublishToggle();
+      renderSidebar();
+      showToast(draft.published ? 'Saved — live to visitors within a minute' : 'Saved as draft');
+    }
+
+    async function deleteCurrentQuiz() {
       if (!confirm(`Delete "${draft.title}"? This cannot be undone.`)) return;
-      Storage.deleteQuiz(currentQuizId);
+      try {
+        await Api.deleteQuiz(currentQuizId);
+      } catch (err) {
+        showToast('Delete failed — ' + err.message);
+        return;
+      }
+      allQuizzes = allQuizzes.filter(q => q.id !== currentQuizId);
       currentQuizId = null;
       draft = null;
+      savedSnapshot = null;
       document.getElementById('quiz-editor').classList.add('hidden');
       document.getElementById('empty-state').classList.remove('hidden');
       renderSidebar();
     }
 
-    function createQuiz() {
+    async function createQuiz() {
       const id = 'quiz-' + Date.now();
       const newQuiz = {
         id,
@@ -1329,6 +1421,7 @@
         title: 'New Quiz',
         subtitle: '',
         groundingNote: '',
+        published: false, // new quizzes start as drafts, invisible to visitors
         questions: [
           {
             id: Storage.generateId(),
@@ -1351,8 +1444,15 @@
         availableFlags: [],
         leadCapture: { fields: ['name','email','phone','deadline'], issueTypeLabel: '', issueTypeOptions: [], customFields: [] },
       };
-      Storage.saveQuiz(newQuiz);
-      selectQuiz(id);
+      let saved;
+      try {
+        saved = await Api.saveQuiz(newQuiz);
+      } catch (err) {
+        showToast('Could not create quiz — ' + err.message);
+        return;
+      }
+      allQuizzes.push(saved);
+      selectQuiz(saved.id);
       showTab('info');
       document.getElementById('f-title').focus();
     }

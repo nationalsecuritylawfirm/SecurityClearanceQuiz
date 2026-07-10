@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@netlify/blobs": "^10.7.9",
     "jose": "^5.9.6"
   }
 }

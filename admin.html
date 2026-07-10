@@ -183,7 +183,7 @@
     <div class="flex-between" style="margin-bottom:1.5rem;flex-wrap:wrap;gap:0.75rem;">
       <div>
         <h1 style="color:var(--navy)">Analytics</h1>
-        <p class="text-muted mt-1">All quiz responses — stored locally in this browser.</p>
+        <p class="text-muted mt-1">All quiz responses submitted across the site.</p>
       </div>
     </div>
 
@@ -244,19 +244,33 @@
     </div>
   </div>
 
-  <script src="js/seed.js"></script>
-  <script src="js/storage.js"></script>
   <script>
     let allResponses = [];
     let allQuizzes   = [];
 
-    function init() {
-      Storage.init();
-      allResponses = Storage.getResponses();
-      allQuizzes   = Storage.getQuizzes();
+    async function init() {
+      // Quizzes (for flag/tag label lookups) come from the server like the
+      // responses (deploy-plan/03). If they fail to load, the table still
+      // renders — flags/tags just fall back to their raw ids.
+      try {
+        allQuizzes = await Api.getQuizzesAdmin();
+      } catch {
+        allQuizzes = [];
+      }
 
-      // Populate quiz filter
+      const tbody = document.getElementById('responses-tbody');
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Loading…</td></tr>';
+      try {
+        allResponses = await Api.getResponses();
+      } catch {
+        renderStats([]);
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Could not load responses. <button class="view-btn" onclick="init()">Retry</button></td></tr>';
+        return;
+      }
+
+      // Populate quiz filter (reset first — init re-runs on retry/re-auth)
       const quizSel = document.getElementById('filter-quiz');
+      while (quizSel.options.length > 1) quizSel.remove(1);
       const seen = new Set();
       for (const r of allResponses) {
         if (!seen.has(r.quizId)) {
@@ -269,7 +283,7 @@
       }
 
       renderStats(allResponses);
-      renderTable(allResponses);
+      applyFilters();
     }
 
     function applyFilters() {
@@ -331,7 +345,7 @@
             <td>${escHtml(r.quizTitle || r.quizId)}</td>
             <td>
               ${r.resultTier != null
-                ? `<span class="tier-badge tier-${r.resultTier}">Tier ${r.resultTier}</span>`
+                ? `<span class="tier-badge tier-${escHtml(r.resultTier)}">Tier ${escHtml(r.resultTier)}</span>`
                 : `<span class="tier-badge" style="background:#f1f5f9;color:var(--text-2);border-color:var(--border-md);">Assessment</span>`
               }
               <div style="font-size:0.78rem;color:var(--text-2);margin-top:0.25rem;max-width:160px;">${escHtml(r.resultLabel || '')}</div>
@@ -350,17 +364,27 @@
       }).join('');
     }
 
-    function deleteRow(id) {
+    async function deleteRow(id) {
       if (!confirm('Delete this response?')) return;
-      Storage.deleteResponse(id);
-      allResponses = Storage.getResponses();
+      try {
+        await Api.deleteResponse(id);
+      } catch {
+        alert('Delete failed. Please try again.');
+        return;
+      }
+      allResponses = allResponses.filter(r => r.id !== id);
       renderStats(allResponses);
       applyFilters();
     }
 
-    function clearAll() {
+    async function clearAll() {
       if (!confirm('Delete ALL responses? This cannot be undone.')) return;
-      Storage.clearResponses();
+      try {
+        await Api.clearResponses();
+      } catch {
+        alert('Clear failed. Please try again.');
+        return;
+      }
       allResponses = [];
       document.getElementById('filter-quiz').value = '';
       document.getElementById('filter-tier').value = '';
@@ -393,7 +417,13 @@
           lc.phone || '',
           lc.deadline || '',
           lc.issueType || '',
-        ].map(v => `"${String(v).replace(/"/g,'""')}"`);
+        ].map(v => {
+          let s = String(v);
+          // Neutralize spreadsheet formula injection: cells starting with these
+          // characters are interpreted as formulas by Excel/Sheets/LibreOffice.
+          if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+          return `"${s.replace(/"/g,'""')}"`;
+        });
         csvRows.push(cells.join(','));
       }
 
@@ -420,7 +450,7 @@
 
       // ── Result section ──
       const resultBadge = r.resultTier != null
-        ? `<span class="tier-badge tier-${r.resultTier}">Tier ${r.resultTier}</span>`
+        ? `<span class="tier-badge tier-${escHtml(r.resultTier)}">Tier ${escHtml(r.resultTier)}</span>`
         : `<span class="tier-badge" style="background:#f1f5f9;color:var(--text-2);border-color:var(--border-md);">Assessment</span>`;
       let resultHtml = `<div style="margin-bottom:0.5rem;">${resultBadge} <span style="font-size:0.875rem;font-weight:500;">${escHtml(r.resultLabel || '')}</span></div>`;
 
@@ -517,14 +547,13 @@
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    let appStarted = false;
     Api.initAuth({
       buttonEl: document.getElementById('gsi-button'),
       messageEl: document.getElementById('auth-message'),
       onAuthorized() {
         document.getElementById('auth-gate').classList.add('hidden');
         document.getElementById('app-main').classList.remove('hidden');
-        if (!appStarted) { appStarted = true; init(); }
+        init(); // idempotent — re-runs on re-auth to refresh the data
       },
       onSignedOut() {
         document.getElementById('app-main').classList.add('hidden');

@@ -98,15 +98,22 @@
     </div>
   </div>
 
-  <script src="js/seed.js"></script>
-  <script src="js/storage.js"></script>
+  <script src="js/api.js"></script>
   <script>
     const ICONS = ['📋', '💰', '🛡️', '📁', '⚖️'];
 
-    function init() {
-      Storage.init();
-      const quizzes = Storage.getQuizzes();
+    async function init() {
       const grid = document.getElementById('quiz-grid');
+      grid.innerHTML = '<div class="empty-state">Loading quizzes…</div>';
+
+      let quizzes;
+      try {
+        quizzes = await Api.getQuizzes();
+      } catch {
+        grid.innerHTML = `<div class="empty-state">Couldn't load quizzes. Check your connection and
+          <button class="btn btn-outline btn-sm" onclick="init()" style="margin-left:0.4rem;">try again</button></div>`;
+        return;
+      }
 
       if (!quizzes.length) {
         grid.innerHTML = '<div class="empty-state">No quizzes yet. Check back soon.</div>';
@@ -114,7 +121,7 @@
       }
 
       grid.innerHTML = quizzes.map((quiz, i) => {
-        const qCount = quiz.questions.length;
+        const qCount = quiz.questionCount || 0;
         const icon = ICONS[i % ICONS.length];
         return `
           <div class="quiz-card">
@@ -126,7 +133,7 @@
               <span>·</span>
               <span>~${Math.ceil(qCount * 0.5)} min</span>
             </div>
-            <a href="quiz.html?id=${encodeURIComponent(quiz.id)}">Take the Quiz →</a>
+            <a href="quiz.html?id=${encodeURIComponent(quiz.slug || quiz.id)}">Take the Quiz →</a>
           </div>
         `;
       }).join('');

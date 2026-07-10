@@ -1,8 +1,11 @@
-// Google SSO auth core for the internal pages (deploy-plan/02-auth.md).
-// The Google ID token lives only in this closure — never in localStorage,
-// sessionStorage, or a cookie. Plan 1 adds the data methods on top of
-// Api.authFetch.
+// Google SSO auth core for the internal pages (deploy-plan/02-auth.md) plus
+// the response data methods (deploy-plan/01-leads-backend.md).
+// The Google ID token is kept in this closure and mirrored to sessionStorage
+// (per-tab, gone when the tab closes) so refreshes and admin↔builder
+// navigation don't re-prompt on browsers without silent re-auth (Firefox/
+// Safari block the third-party cookie GIS needs). Never localStorage.
 const Api = (() => {
+  const TOKEN_KEY = 'ql_id_token';
   let idToken = null;
   let userEmail = null;
   let authorized = false;
@@ -25,10 +28,18 @@ const Api = (() => {
     });
   }
 
+  function storeToken(token) {
+    try {
+      if (token) sessionStorage.setItem(TOKEN_KEY, token);
+      else sessionStorage.removeItem(TOKEN_KEY);
+    } catch { /* storage may be unavailable; in-memory still works */ }
+  }
+
   // Every credential lands here: button click, auto sign-in at page load, and
   // silent re-acquisition after a 401.
   function handleCredential(response) {
     idToken = response.credential;
+    storeToken(idToken);
     const waiters = tokenWaiters;
     tokenWaiters = [];
     for (const resolve of waiters) resolve(idToken);
@@ -37,7 +48,9 @@ const Api = (() => {
 
   // Confirm the signed-in account against the server-side allow-list, so an
   // unlisted account gets a clear rejection instead of a broken dashboard.
-  async function verifySignIn() {
+  // quiet = don't surface errors (used for the stored token from a previous
+  // page load, where "expired" is normal and the gate is the right response).
+  async function verifySignIn(quiet = false) {
     try {
       const res = await fetch('/api/auth/me', {
         headers: { Authorization: 'Bearer ' + idToken },
@@ -50,10 +63,11 @@ const Api = (() => {
         if (ui.onAuthorized) ui.onAuthorized(userEmail);
       } else {
         idToken = null;
-        setMessage(body.error || 'Sign-in failed. Please try again.');
+        storeToken(null);
+        if (!quiet) setMessage(body.error || 'Sign-in failed. Please try again.');
       }
     } catch {
-      setMessage('Could not reach the server. Please try again.');
+      if (!quiet) setMessage('Could not reach the server. Please try again.');
     }
   }
 
@@ -91,6 +105,7 @@ const Api = (() => {
 
   function signedOut() {
     idToken = null;
+    storeToken(null);
     authorized = false;
     setMessage('Your session ended. Please sign in again.');
     if (ui.onSignedOut) ui.onSignedOut();
@@ -126,6 +141,18 @@ const Api = (() => {
 
   async function initAuth(opts) {
     ui = opts;
+
+    // A token from a previous page load in this tab lets refreshes and
+    // admin↔builder navigation skip the sign-in UI entirely (the server still
+    // verifies it on every request). If it's expired, fall through to GIS.
+    const stored = (() => {
+      try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; }
+    })();
+    if (stored) {
+      idToken = stored;
+      await verifySignIn(true);
+    }
+
     let clientId;
     try {
       const res = await fetch('/api/auth/config');
@@ -151,14 +178,100 @@ const Api = (() => {
         text: 'signin_with',
       });
     }
-    // Attempt a silent sign-in for returning admins (refresh, new tab); if it
-    // can't complete, the rendered button is already the fallback.
-    google.accounts.id.prompt();
+    // Attempt a silent sign-in for returning admins (new tab, expired stored
+    // token); if it can't complete, the rendered button is already the
+    // fallback. Skipped when the stored token already authorized us.
+    if (!authorized) google.accounts.id.prompt();
+  }
+
+  // ── Data methods (deploy-plan/01) ──────────────────────────────
+
+  async function expectJson(res, okStatus) {
+    const body = await res.json().catch(() => ({}));
+    if (res.status !== okStatus) {
+      throw new Error(body.error || `Request failed (${res.status})`);
+    }
+    return body;
+  }
+
+  // Public — called from quiz.html by anonymous visitors, no auth involved.
+  async function saveResponse(response) {
+    const res = await fetch('/api/responses', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(response),
+    });
+    return expectJson(res, 201);
+  }
+
+  // Public — quiz listing/loading for index.html and quiz.html (deploy-plan/03).
+  // Published quizzes only; the thrown error carries .status so quiz.html can
+  // tell "no such quiz" (404) from "network/server trouble".
+  async function getQuizzes() {
+    return expectJson(await fetch('/api/quizzes'), 200);
+  }
+
+  async function getQuiz(idOrSlug) {
+    const res = await fetch('/api/quizzes/' + encodeURIComponent(idOrSlug));
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(body.error || `Request failed (${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    return body;
+  }
+
+  // Admin — full quiz JSON including drafts (builder.html, admin.html).
+  async function getQuizzesAdmin() {
+    return expectJson(await authFetch('/api/quizzes'), 200);
+  }
+
+  async function saveQuiz(quiz) {
+    return expectJson(
+      await authFetch('/api/quizzes/' + encodeURIComponent(quiz.id), {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(quiz),
+      }),
+      200
+    );
+  }
+
+  async function deleteQuiz(id) {
+    return expectJson(
+      await authFetch('/api/quizzes/' + encodeURIComponent(id), { method: 'DELETE' }),
+      200
+    );
+  }
+
+  async function getResponses() {
+    return expectJson(await authFetch('/api/responses'), 200);
+  }
+
+  async function deleteResponse(id) {
+    return expectJson(
+      await authFetch('/api/responses/' + encodeURIComponent(id), { method: 'DELETE' }),
+      200
+    );
+  }
+
+  async function clearResponses() {
+    return expectJson(await authFetch('/api/responses', { method: 'DELETE' }), 200);
   }
 
   return {
     initAuth,
     authFetch,
     getEmail: () => userEmail,
+    getQuizzes,
+    getQuiz,
+    getQuizzesAdmin,
+    saveQuiz,
+    deleteQuiz,
+    saveResponse,
+    getResponses,
+    deleteResponse,
+    clearResponses,
   };
 })();

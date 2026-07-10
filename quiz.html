@@ -156,6 +156,13 @@
       display: flex; align-items: center; gap: 0.35rem;
       font-size: 0.875rem; cursor: pointer;
     }
+    /* Honeypot: invisible to humans, tempting to bots (deploy-plan/01) */
+    .lf-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+    .lead-error {
+      margin-top: 0.75rem; padding: 0.6rem 0.8rem; border-radius: 6px;
+      background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;
+      font-size: 0.875rem; text-align: center;
+    }
     .lead-success {
       text-align: center;
       padding: 1.5rem;
@@ -335,7 +342,12 @@
             <label for="lf-issuetype" id="lf-issuetype-label">What type of issue?</label>
             <select id="lf-issuetype"></select>
           </div>
-          <button type="submit" class="btn btn-navy btn-lg mt-4" style="width:100%">Send My Information →</button>
+          <div class="lf-hp" aria-hidden="true">
+            <label for="lf-website">Website</label>
+            <input type="text" id="lf-website" name="website" tabindex="-1" autocomplete="off">
+          </div>
+          <button type="submit" class="btn btn-navy btn-lg mt-4" style="width:100%" id="lead-submit-btn">Send My Information →</button>
+          <div class="lead-error hidden" id="lead-error">Something went wrong sending your information. Please try again.</div>
         </form>
         <div class="lead-success hidden" id="lead-success">
           <span class="checkmark">✓</span>
@@ -350,8 +362,8 @@
     </div>
   </div>
 
-  <script src="js/seed.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/api.js"></script>
   <script>
     let quiz = null;
     let currentQ = 0;
@@ -359,16 +371,37 @@
 
     // ── Init ────────────────────────────────────
 
-    function init() {
-      Storage.init();
+    function showLoadError(message, canRetry) {
+      document.getElementById('step-label').textContent = '';
+      document.getElementById('quiz-title').textContent = message;
+      document.getElementById('question-text').textContent = '';
+      document.getElementById('options-list').innerHTML = canRetry
+        ? '<button class="btn btn-navy" onclick="init()" style="align-self:flex-start;">Try again</button>'
+        : '<a href="index.html" class="btn btn-outline" style="align-self:flex-start;">← See all quizzes</a>';
+      document.getElementById('btn-back').disabled = true;
+      document.getElementById('btn-next').disabled = true;
+    }
+
+    async function init() {
       const params = new URLSearchParams(location.search);
       const id = params.get('id');
 
-      quiz = id ? Storage.getQuiz(id) : null;
+      if (!id) {
+        showLoadError('Quiz not found.', false);
+        return;
+      }
 
-      if (!quiz) {
-        document.getElementById('quiz-title').textContent = 'Quiz not found.';
-        document.getElementById('btn-next').disabled = true;
+      document.getElementById('step-label').textContent = '';
+      document.getElementById('quiz-title').textContent = 'Loading…';
+
+      try {
+        // Published quizzes only — drafts 404 here by design (deploy-plan/03).
+        quiz = await Api.getQuiz(id);
+      } catch (err) {
+        showLoadError(
+          err.status === 404 ? 'Quiz not found.' : "Couldn't load this quiz. Check your connection.",
+          err.status !== 404
+        );
         return;
       }
 
@@ -529,7 +562,7 @@
     function showResult() {
       const visibleAnswers = answers.filter((ans, qi) => ans && isQuestionVisible(qi));
       const scored = Storage.scoreAnswers(quiz, visibleAnswers);
-      const { tier, result, scores, mode, triggeredTags, collectedTags } = scored;
+      const { tier, result, scores, mode, triggeredTags, collectedTags, collectedFlags } = scored;
 
       document.getElementById('progress-fill').style.width = '100%';
       document.getElementById('result-quiz-title').textContent = quiz.title;
@@ -653,9 +686,9 @@
 
     // ── Lead capture ────────────────────────────
 
-    function submitLead(e) {
+    async function submitLead(e) {
       e.preventDefault();
-      const { tier, result, flags, collectedTags } = window._quizResult || {};
+      const { tier, result, collectedFlags, collectedTags } = window._quizResult || {};
       const deadline = document.querySelector('input[name="deadline"]:checked');
 
       const customFields = (quiz.leadCapture && quiz.leadCapture.customFields) || [];
@@ -665,11 +698,10 @@
         if (el) customData[f.label] = el.value.trim();
       });
 
+      // No id/timestamp here — the server assigns both (deploy-plan/01).
       const response = {
-        id: Storage.generateId(),
         quizId: quiz.id,
         quizTitle: quiz.title,
-        timestamp: new Date().toISOString(),
         answers: answers.reduce((acc, opt, qi) => {
           if (opt && isQuestionVisible(qi)) {
             const q = quiz.questions[qi];
@@ -680,7 +712,7 @@
         }, []),
         resultTier: tier,
         resultLabel: result ? result.label : '',
-        triggeredFlags: collectedFlags || flags || [],
+        triggeredFlags: collectedFlags || [],
         collectedTags: collectedTags || [],
         leadCapture: {
           name: document.getElementById('lf-name').value.trim(),
@@ -690,11 +722,24 @@
           issueType: document.getElementById('lf-issuetype').value || '',
           ...customData,
         },
+        website: document.getElementById('lf-website').value, // honeypot
       };
 
-      Storage.saveResponse(response);
-      document.getElementById('lead-form').classList.add('hidden');
-      document.getElementById('lead-success').classList.remove('hidden');
+      const btn = document.getElementById('lead-submit-btn');
+      const errEl = document.getElementById('lead-error');
+      errEl.classList.add('hidden');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      try {
+        await Api.saveResponse(response);
+        document.getElementById('lead-form').classList.add('hidden');
+        document.getElementById('lead-success').classList.remove('hidden');
+      } catch {
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send My Information →';
+      }
     }
 
     // ── Util ────────────────────────────────────
